@@ -102,7 +102,10 @@ export function ProductDetail({ product }: ProductDetailProps) {
               </div>
             </div>
 
-            <PayInFourWidget total={order.total} />
+            <PayInFourWidget
+              total={order.total}
+              directCheckoutHref={`/checkout?product=${product.slug}&direct=pay-in-4`}
+            />
 
             <div className="grid grid-cols-2 gap-3">
               {productHighlights.map((feature, index) => {

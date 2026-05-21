@@ -87,7 +87,7 @@ export function GatewayCheckoutScreen({ product }: GatewayCheckoutScreenProps) {
           <PaymentSection title="Pay 4">
             <GatewayPaymentRow
               title="Pay in 4"
-              description={`${formatCurrency(installmentAmount)} today, then every 2 weeks`}
+              description={`${formatCurrency(installmentAmount)} today, then monthly`}
               icon={gatewayAssets.payIn4}
               href={`/checkout/classic?product=${product.slug}`}
               standalone

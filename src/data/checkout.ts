@@ -217,7 +217,7 @@ export function createPaymentMethods(
       value: "pay-in-4",
       title: "Pay in 4",
       description: "Split the purchase into four interest-free payments.",
-      detail: `${formatCurrency(installmentAmount)} today, then every 2 weeks`,
+      detail: `${formatCurrency(installmentAmount)} today, then monthly`,
       badge: "Recommended",
       offer: "0% interest",
       icon: Landmark,

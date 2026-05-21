@@ -1,7 +1,6 @@
 import Image from "next/image"
-import { ChevronRight, type LucideIcon } from "lucide-react"
+import { type LucideIcon } from "lucide-react"
 
-import { Badge } from "@/components/ui/badge"
 import {
   Field,
   FieldContent,
@@ -18,8 +17,6 @@ type PaymentMethodCardProps = {
   title: string
   description: string
   detail: string
-  badge?: string
-  offer?: string
   icon: LucideIcon
   iconSrc?: string
   selected: boolean
@@ -31,8 +28,6 @@ export function PaymentMethodCard({
   title,
   description,
   detail,
-  badge,
-  offer,
   icon: Icon,
   iconSrc,
   selected,
@@ -45,7 +40,7 @@ export function PaymentMethodCard({
         selected && "text-primary"
       )}
     >
-      <Field orientation="horizontal" className="items-start gap-3 px-0 py-4">
+      <Field orientation="horizontal" className="items-start gap-3 px-0 py-0">
         <div
           className={cn(
             "mt-0.5 flex size-8 shrink-0 items-center justify-center text-muted-foreground",
@@ -74,16 +69,6 @@ export function PaymentMethodCard({
             >
               {title}
             </FieldTitle>
-            {offer ? (
-              <Badge
-                variant="secondary"
-                className="border-0 bg-accent text-[var(--checkout-success)]"
-              >
-                {offer}
-              </Badge>
-            ) : badge ? (
-              <Badge variant="secondary">{badge}</Badge>
-            ) : null}
           </div>
           <FieldDescription className="text-xs leading-5">
             {description}
@@ -92,11 +77,7 @@ export function PaymentMethodCard({
             {detail}
           </p>
         </FieldContent>
-        <RadioGroupItem id={id} value={value} className="sr-only" />
-        <ChevronRight
-          className="mt-1 size-5 shrink-0 text-muted-foreground"
-          aria-hidden="true"
-        />
+        <RadioGroupItem id={id} value={value} className="mt-1" />
       </Field>
     </FieldLabel>
   )
