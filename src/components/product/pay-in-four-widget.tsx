@@ -6,7 +6,7 @@ import Link from "next/link"
 import { ChevronDown } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
-import { formatCurrency } from "@/data/checkout"
+import { formatCurrency, splitInstallments } from "@/data/checkout"
 import { cn } from "@/lib/utils"
 
 const installmentSteps = [
@@ -21,15 +21,6 @@ type PayInFourWidgetProps = {
   defaultExpanded?: boolean
   embedded?: boolean
   directCheckoutHref?: string
-}
-
-function splitInstallments(total: number) {
-  const baseAmount = Math.floor(total / 4)
-  const remainder = total - baseAmount * 4
-
-  return Array.from({ length: 4 }, (_, index) =>
-    baseAmount + (index < remainder ? 1 : 0)
-  )
 }
 
 export function PayInFourWidget({

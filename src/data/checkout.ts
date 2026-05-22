@@ -26,6 +26,7 @@ export type Product = {
   image: string
   price: number
   href: string
+  payInFourEligible?: boolean
   features: string[]
   specs: Array<{
     label: string
@@ -76,6 +77,7 @@ export const products: Product[] = [
     image: "/products/marlow-boucle-sofa.png",
     price: 89999,
     href: "/product/marlow-boucle-sofa",
+    payInFourEligible: true,
     features: [
       "Three-seat frame",
       "Ivory boucle upholstery",
@@ -124,6 +126,7 @@ export const products: Product[] = [
     image: "/products/cove-sectional-sofa.png",
     price: 139999,
     href: "/product/cove-sectional-sofa",
+    payInFourEligible: true,
     features: [
       "Right-facing chaise",
       "Curved sectional frame",
@@ -206,10 +209,19 @@ export function createCheckoutOrder(product: Product): CheckoutOrder {
   }
 }
 
+export function splitInstallments(total: number) {
+  const baseAmount = Math.floor(total / 4)
+  const remainder = total - baseAmount * 4
+
+  return Array.from({ length: 4 }, (_, index) =>
+    baseAmount + (index < remainder ? 1 : 0)
+  )
+}
+
 export function createPaymentMethods(
   order: CheckoutOrder
 ): PaymentMethodOption[] {
-  const installmentAmount = order.total / 4
+  const installmentAmount = splitInstallments(order.total)[0]
 
   return [
     {
