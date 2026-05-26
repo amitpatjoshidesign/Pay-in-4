@@ -120,7 +120,7 @@ export function ProductLanding() {
                 </Link>
                 {item.payInFourEligible ? (
                   <div className="px-4 pb-4">
-                    <div className="flex min-w-0 items-center gap-2 pt-1">
+                    <div className="flex min-w-0 flex-wrap items-center gap-2 pt-1">
                       <button
                         type="button"
                         className="shrink-0 rounded-[8px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
@@ -131,6 +131,11 @@ export function ProductLanding() {
                       >
                         <PayInFourTag />
                       </button>
+                      {item.merchantOffer ? (
+                        <Badge className="h-6 shrink-0 rounded-[8px] bg-emerald-50 px-2 text-[10px] font-bold leading-none text-emerald-700 ring-1 ring-emerald-200 hover:bg-emerald-50">
+                          {item.merchantOffer.value}% off
+                        </Badge>
+                      ) : null}
                       <p className="min-w-0 text-sm font-medium text-primary">
                         4 payments of{" "}
                         {formatCurrency(splitInstallments(payInFourTotal)[0])}{" "}
