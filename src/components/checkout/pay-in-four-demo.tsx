@@ -165,8 +165,8 @@ function formatPaymentDate(date: Date) {
   }).format(date)
 }
 
-function createPaymentSchedule(paymentDate: Date, amount: number) {
-  return [0, 1, 2, 3].map((monthOffset) => ({
+function createPaymentSchedule(paymentDate: Date, amounts: number[]) {
+  return amounts.map((amount, monthOffset) => ({
     label: `Payment ${monthOffset + 1}`,
     date:
       monthOffset === 0
@@ -802,15 +802,18 @@ function SuccessInstallmentProgress({
 }
 
 function PaymentSuccessStep({
-  dueToday,
+  installmentAmounts,
+  offerPercent,
   paymentDate,
   savedCard,
 }: {
-  dueToday: number
+  installmentAmounts: number[]
+  offerPercent?: number
   paymentDate: Date
   savedCard: SavedPayInFourCard
 }) {
-  const paymentSchedule = createPaymentSchedule(paymentDate, dueToday)
+  const dueToday = installmentAmounts[0]
+  const paymentSchedule = createPaymentSchedule(paymentDate, installmentAmounts)
   const donePayments = paymentSchedule.filter(
     (payment) => payment.status === "Done"
   )
@@ -860,13 +863,15 @@ function PaymentSuccessStep({
 
         <section className="relative z-10 flex w-full max-w-sm flex-col gap-1 rounded-[15px] bg-[var(--pay-in-four-panel)] p-1 text-left">
           <div className="flex w-full items-center justify-between gap-3 p-2">
-            <div className="flex min-w-0 items-center gap-2">
+            <div className="flex min-w-0 flex-wrap items-center gap-2">
               <p className="shrink-0 text-sm font-bold italic leading-[18px] text-[var(--pay-in-four-panel-foreground)]">
                 Pay in 4
               </p>
-              <span className="shrink-0 rounded-full bg-white/20 px-2 py-0.5 text-[10px] font-semibold leading-4 text-white">
-                0% interest
-              </span>
+              {offerPercent ? (
+                <span className="shrink-0 rounded-full bg-white/20 px-2 py-0.5 text-[10px] font-semibold leading-4 text-white">
+                  {offerPercent}% off
+                </span>
+              ) : null}
             </div>
             <div className="flex shrink-0 items-center gap-1.5">
               <p className="text-xs font-normal leading-[18px] text-[var(--pay-in-four-panel-foreground)] opacity-50">
@@ -994,10 +999,18 @@ export function PayInFourDemo({
     savedPayInFourCards.find((card) => card.id === selectedSavedCardId) ??
     defaultSavedPayInFourCard
   const isPaymentSuccess = checkoutStep === "pay" && paymentStage === "success"
+  const isPayInFourOfferActive =
+    paymentMethod === "pay-in-4" && (directPayInFour || checkoutStep === "pay")
   const payInFourInstallments = useMemo(
-    () => splitInstallments(order.total),
-    [order.total]
+    () => splitInstallments(order.payInFourTotal),
+    [order.payInFourTotal]
   )
+  const checkoutAmount = isPayInFourOfferActive
+    ? order.payInFourTotal
+    : order.total
+  const checkoutDiscountAmount = isPayInFourOfferActive
+    ? order.payInFourDiscountAmount
+    : 0
 
   const dueToday =
     paymentMethod === "pay-in-4"
@@ -1088,11 +1101,11 @@ export function PayInFourDemo({
       />
       {!isPaymentSuccess ? (
         <CheckoutOrderHeader
-          amount={order.total}
-          discountAmount={order.discountAmount}
+          amount={checkoutAmount}
+          discountAmount={checkoutDiscountAmount}
           merchantOfferLabel={order.merchantOffer?.label}
           mrp={order.mrp}
-          subtotal={order.subtotal}
+          subtotal={checkoutAmount}
           productHref={product.href}
         />
       ) : null}
@@ -1134,6 +1147,8 @@ export function PayInFourDemo({
                                 title={method.title}
                                 description={method.description}
                                 detail={method.detail}
+                                badge={method.badge}
+                                offer={method.offer}
                                 icon={method.icon}
                                 iconSrc={method.iconSrc}
                                 selected={paymentMethod === method.value}
@@ -1143,7 +1158,12 @@ export function PayInFourDemo({
                         </RadioGroup>
                       </FieldSet>
                       {paymentMethod === "pay-in-4" ? (
-                        <PayInFourWidget total={order.total} embedded />
+                        <PayInFourWidget
+                          total={order.payInFourTotal}
+                          originalTotal={order.total}
+                          embedded
+                          offerPercent={order.merchantOffer?.value}
+                        />
                       ) : null}
                     </CardContent>
                   </Card>
@@ -1184,6 +1204,8 @@ export function PayInFourDemo({
                                     title={method.title}
                                     description={method.description}
                                     detail={method.detail}
+                                    badge={method.badge}
+                                    offer={method.offer}
                                     icon={method.icon}
                                     iconSrc={method.iconSrc}
                                     selected={paymentMethod === method.value}
@@ -1251,7 +1273,8 @@ export function PayInFourDemo({
 
             {checkoutStep === "pay" && paymentStage === "success" ? (
               <PaymentSuccessStep
-                dueToday={dueToday}
+                installmentAmounts={payInFourInstallments}
+                offerPercent={order.merchantOffer?.value}
                 paymentDate={successDate ?? new Date()}
                 savedCard={selectedSavedCard}
               />

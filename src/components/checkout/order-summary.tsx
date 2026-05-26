@@ -24,8 +24,13 @@ type OrderSummaryProps = {
 
 export function OrderSummary({
   order,
+  paymentMethod,
   product,
 }: OrderSummaryProps) {
+  const isPayInFour = paymentMethod === "pay-in-4"
+  const discountAmount = isPayInFour ? order.payInFourDiscountAmount : 0
+  const total = isPayInFour ? order.payInFourTotal : order.total
+
   return (
     <Card className="rounded-[var(--radius)] border-border ring-0 shadow-[var(--checkout-shadow)] lg:sticky lg:top-6">
       <CardHeader className="border-b">
@@ -56,13 +61,13 @@ export function OrderSummary({
             </Badge>
           </div>
           <div className="flex shrink-0 flex-col items-end">
-            {order.discountAmount > 0 ? (
+            {discountAmount > 0 ? (
               <span className="text-xs text-muted-foreground line-through">
                 {formatCurrency(order.mrp)}
               </span>
             ) : null}
             <p className="font-medium tabular-nums">
-              {formatCurrency(order.subtotal)}
+              {formatCurrency(total)}
             </p>
           </div>
         </div>
@@ -70,12 +75,12 @@ export function OrderSummary({
         <Separator />
 
         <div className="grid gap-2 text-sm">
-          {order.discountAmount > 0 ? (
+          {discountAmount > 0 ? (
             <>
               <SummaryRow label="MRP" value={order.mrp} />
               <SummaryRow
                 label={order.merchantOffer?.label ?? "Merchant offer"}
-                value={`-${formatCurrency(order.discountAmount)}`}
+                value={`-${formatCurrency(discountAmount)}`}
               />
             </>
           ) : (
@@ -95,7 +100,7 @@ export function OrderSummary({
         <div className="flex items-center justify-between">
           <p className="font-medium">Total</p>
           <p className="text-xl font-semibold tabular-nums">
-            {formatCurrency(order.total)}
+            {formatCurrency(total)}
           </p>
         </div>
 

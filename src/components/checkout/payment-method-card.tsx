@@ -17,6 +17,8 @@ type PaymentMethodCardProps = {
   title: string
   description: string
   detail: string
+  badge?: string
+  offer?: string
   icon: LucideIcon
   iconSrc?: string
   selected: boolean
@@ -28,6 +30,8 @@ export function PaymentMethodCard({
   title,
   description,
   detail,
+  badge,
+  offer,
   icon: Icon,
   iconSrc,
   selected,
@@ -69,6 +73,16 @@ export function PaymentMethodCard({
             >
               {title}
             </FieldTitle>
+            {badge ? (
+              <span className="rounded-full bg-muted px-2 py-0.5 text-[10px] font-semibold leading-4 text-muted-foreground">
+                {badge}
+              </span>
+            ) : null}
+            {offer ? (
+              <span className="rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-semibold leading-4 text-primary">
+                {offer}
+              </span>
+            ) : null}
           </div>
           <FieldDescription className="text-xs leading-5">
             {description}

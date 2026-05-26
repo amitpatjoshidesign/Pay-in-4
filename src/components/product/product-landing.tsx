@@ -6,7 +6,6 @@ import Link from "next/link"
 import { ShoppingCart, X } from "lucide-react"
 
 import { PayInFourThemePopover } from "@/components/pay-in-four-theme"
-import { MerchantOfferStrip } from "@/components/product/merchant-offer-strip"
 import { PayInFourWidget } from "@/components/product/pay-in-four-widget"
 import { ProductBrand } from "@/components/product/product-brand"
 import { Badge } from "@/components/ui/badge"
@@ -22,7 +21,7 @@ import {
   createCheckoutOrder,
   defaultProduct,
   formatCurrency,
-  getDiscountedProductPrice,
+  getPayInFourOfferTotal,
   products,
   splitInstallments,
   type Product,
@@ -79,7 +78,7 @@ export function ProductLanding() {
       <section className="mx-auto flex w-full max-w-6xl flex-col gap-6 px-4 py-6 md:px-6">
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {products.map((item, index) => {
-            const displayPrice = getDiscountedProductPrice(item)
+            const payInFourTotal = getPayInFourOfferTotal(item)
 
             return (
               <Card
@@ -113,16 +112,9 @@ export function ProductLanding() {
                           {item.subtitle}
                         </CardDescription>
                       </div>
-                      <div className="flex shrink-0 flex-col items-end">
-                        {item.merchantOffer ? (
-                          <span className="text-xs text-muted-foreground line-through">
-                            {formatCurrency(item.price)}
-                          </span>
-                        ) : null}
-                        <p className="text-lg font-semibold tabular-nums">
-                          {formatCurrency(displayPrice)}
-                        </p>
-                      </div>
+                      <p className="shrink-0 text-lg font-semibold tabular-nums">
+                        {formatCurrency(item.price)}
+                      </p>
                     </div>
                   </CardHeader>
                 </Link>
@@ -141,7 +133,7 @@ export function ProductLanding() {
                       </button>
                       <p className="min-w-0 text-sm font-medium text-primary">
                         4 payments of{" "}
-                        {formatCurrency(splitInstallments(displayPrice)[0])}{" "}
+                        {formatCurrency(splitInstallments(payInFourTotal)[0])}{" "}
                         monthly
                       </p>
                     </div>
@@ -248,11 +240,12 @@ function PayInFourBottomSheet({
         </p>
 
         <div className="flex flex-col gap-3">
-          <MerchantOfferStrip product={product} />
           <PayInFourWidget
-            total={order.total}
+            total={order.payInFourTotal}
+            originalTotal={order.total}
             defaultExpanded
             embedded
+            offerPercent={product.merchantOffer?.value}
             directCheckoutHref={`/checkout?product=${product.slug}&direct=pay-in-4`}
           />
         </div>

@@ -41,7 +41,7 @@ const gatewayAssets = {
 
 export function GatewayCheckoutScreen({ product }: GatewayCheckoutScreenProps) {
   const order = createCheckoutOrder(product)
-  const installmentAmount = order.total / 4
+  const installmentAmount = order.payInFourTotal / 4
   const monthlyEmi = Math.ceil(order.total / 12)
   const paymentRows: PaymentRow[] = [
     {
@@ -89,6 +89,11 @@ export function GatewayCheckoutScreen({ product }: GatewayCheckoutScreenProps) {
               title="Pay in 4"
               description={`${formatCurrency(installmentAmount)} today, then monthly`}
               icon={gatewayAssets.payIn4}
+              offer={
+                order.merchantOffer
+                  ? `${order.merchantOffer.value}% off`
+                  : undefined
+              }
               href={`/checkout/classic?product=${product.slug}`}
               standalone
             />

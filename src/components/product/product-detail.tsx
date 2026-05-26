@@ -107,7 +107,9 @@ export function ProductDetail({ product }: ProductDetailProps) {
             </div>
 
             <PayInFourWidget
-              total={order.total}
+              total={order.payInFourTotal}
+              originalTotal={order.total}
+              offerPercent={product.merchantOffer?.value}
               directCheckoutHref={`/checkout?product=${product.slug}&direct=pay-in-4`}
             />
 
@@ -138,14 +140,7 @@ export function ProductDetail({ product }: ProductDetailProps) {
       <footer className="fixed inset-x-0 bottom-0 z-50 border-t bg-background p-4 pb-[calc(1rem+env(safe-area-inset-bottom))] shadow-[0_-16px_40px_rgba(18,23,21,0.12)] md:static md:border-t-0 md:pt-0 md:shadow-none">
         <div className="mx-auto flex w-full max-w-6xl items-center justify-between gap-3 md:px-6">
           <div className="flex min-w-0 flex-col">
-            <div className="flex items-center gap-2">
-              <span className="text-sm text-muted-foreground">Total</span>
-              {product.merchantOffer ? (
-                <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-[11px] font-semibold text-emerald-700 ring-1 ring-emerald-200">
-                  {product.merchantOffer.value}% off
-                </span>
-              ) : null}
-            </div>
+            <span className="text-sm text-muted-foreground">Total</span>
             <span className="text-2xl font-bold">
               {formatCurrency(order.total)}
             </span>

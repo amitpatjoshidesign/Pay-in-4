@@ -411,9 +411,6 @@ export function PayInFourThemePopover({ className }: { className?: string }) {
                     <p className="text-sm font-bold italic leading-[18px] text-[var(--pay-in-four-panel-foreground)]">
                       Pay in 4
                     </p>
-                    <span className="rounded-full bg-white/20 px-2 py-0.5 text-[10px] font-semibold leading-4 text-white">
-                      0% interest
-                    </span>
                   </div>
                   <div className="rounded-[calc(var(--radius)*0.9)] bg-[var(--pay-in-four-surface)] p-3 text-sm font-medium">
                     Pay Rs 22,500 now then Rs 22,500 for 3 m

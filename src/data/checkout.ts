@@ -47,7 +47,8 @@ export type CheckoutOrder = {
   itemDescription: string
   mrp: number
   merchantOffer?: MerchantOffer
-  discountAmount: number
+  payInFourDiscountAmount: number
+  payInFourTotal: number
   subtotal: number
   delivery: number
   gst: number
@@ -211,7 +212,7 @@ export function getProductBySlug(slug?: string) {
   return products.find((item) => item.slug === slug)
 }
 
-export function getMerchantOfferDiscount(product: Product) {
+export function getPayInFourOfferDiscount(product: Product) {
   if (!product.merchantOffer) {
     return 0
   }
@@ -223,13 +224,13 @@ export function getMerchantOfferDiscount(product: Product) {
   return 0
 }
 
-export function getDiscountedProductPrice(product: Product) {
-  return product.price - getMerchantOfferDiscount(product)
+export function getPayInFourOfferTotal(product: Product) {
+  return product.price - getPayInFourOfferDiscount(product)
 }
 
 export function createCheckoutOrder(product: Product): CheckoutOrder {
-  const discountAmount = getMerchantOfferDiscount(product)
-  const subtotal = product.price - discountAmount
+  const payInFourDiscountAmount = getPayInFourOfferDiscount(product)
+  const payInFourTotal = product.price - payInFourDiscountAmount
 
   return {
     merchant: "Luma Home",
@@ -237,12 +238,13 @@ export function createCheckoutOrder(product: Product): CheckoutOrder {
     itemDescription: product.subtitle,
     mrp: product.price,
     merchantOffer: product.merchantOffer,
-    discountAmount,
-    subtotal,
+    payInFourDiscountAmount,
+    payInFourTotal,
+    subtotal: product.price,
     delivery: 0,
     gst: 0,
     protection: 0,
-    total: subtotal,
+    total: product.price,
   }
 }
 
@@ -258,7 +260,7 @@ export function splitInstallments(total: number) {
 export function createPaymentMethods(
   order: CheckoutOrder
 ): PaymentMethodOption[] {
-  const installmentAmount = splitInstallments(order.total)[0]
+  const installmentAmount = splitInstallments(order.payInFourTotal)[0]
 
   return [
     {
@@ -268,7 +270,10 @@ export function createPaymentMethods(
       description: "Split the purchase into four interest-free payments.",
       detail: `${formatCurrency(installmentAmount)} today, then monthly`,
       badge: "Recommended",
-      offer: "0% interest",
+      offer:
+        order.payInFourDiscountAmount > 0 && order.merchantOffer
+          ? `${order.merchantOffer.value}% off`
+          : undefined,
       icon: Landmark,
       iconSrc: "/checkout-gateway/pay-in-4.svg",
     },
