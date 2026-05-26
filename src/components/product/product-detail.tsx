@@ -9,6 +9,7 @@ import {
   Sofa,
 } from "lucide-react"
 
+import { PayInFourThemePopover } from "@/components/pay-in-four-theme"
 import { PayInFourWidget } from "@/components/product/pay-in-four-widget"
 import { ProductBrand } from "@/components/product/product-brand"
 import { Button } from "@/components/ui/button"
@@ -70,6 +71,9 @@ export function ProductDetail({ product }: ProductDetailProps) {
             <ArrowLeft aria-hidden="true" />
           </Button>
           <ProductBrand />
+          <div className="absolute right-4 md:right-6">
+            <PayInFourThemePopover />
+          </div>
         </div>
       </header>
 
@@ -134,7 +138,14 @@ export function ProductDetail({ product }: ProductDetailProps) {
       <footer className="fixed inset-x-0 bottom-0 z-50 border-t bg-background p-4 pb-[calc(1rem+env(safe-area-inset-bottom))] shadow-[0_-16px_40px_rgba(18,23,21,0.12)] md:static md:border-t-0 md:pt-0 md:shadow-none">
         <div className="mx-auto flex w-full max-w-6xl items-center justify-between gap-3 md:px-6">
           <div className="flex min-w-0 flex-col">
-            <span className="text-sm text-muted-foreground">Total</span>
+            <div className="flex items-center gap-2">
+              <span className="text-sm text-muted-foreground">Total</span>
+              {product.merchantOffer ? (
+                <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-[11px] font-semibold text-emerald-700 ring-1 ring-emerald-200">
+                  {product.merchantOffer.value}% off
+                </span>
+              ) : null}
+            </div>
             <span className="text-2xl font-bold">
               {formatCurrency(order.total)}
             </span>

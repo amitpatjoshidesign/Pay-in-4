@@ -5,6 +5,8 @@ import Image from "next/image"
 import Link from "next/link"
 import { ShoppingCart, X } from "lucide-react"
 
+import { PayInFourThemePopover } from "@/components/pay-in-four-theme"
+import { MerchantOfferStrip } from "@/components/product/merchant-offer-strip"
 import { PayInFourWidget } from "@/components/product/pay-in-four-widget"
 import { ProductBrand } from "@/components/product/product-brand"
 import { Badge } from "@/components/ui/badge"
@@ -17,8 +19,10 @@ import {
   CardTitle,
 } from "@/components/ui/card"
 import {
+  createCheckoutOrder,
   defaultProduct,
   formatCurrency,
+  getDiscountedProductPrice,
   products,
   splitInstallments,
   type Product,
@@ -53,79 +57,99 @@ export function ProductLanding() {
       <header className="border-b bg-background">
         <div className="mx-auto flex w-full max-w-6xl items-center justify-between px-4 py-4 md:px-6">
           <ProductBrand />
-          <Button
-            render={<Link href={`/checkout?product=${defaultProduct.slug}`} />}
-            variant="outline"
-            nativeButton={false}
-          >
-            <ShoppingCart data-icon="inline-start" />
-            Checkout
-          </Button>
+          <div className="flex items-center gap-2">
+            <PayInFourThemePopover />
+            <Button
+              render={
+                <Link
+                  href={`/checkout?product=${defaultProduct.slug}`}
+                  aria-label="Checkout"
+                />
+              }
+              variant="outline"
+              size="icon"
+              nativeButton={false}
+            >
+              <ShoppingCart aria-hidden="true" />
+            </Button>
+          </div>
         </div>
       </header>
 
       <section className="mx-auto flex w-full max-w-6xl flex-col gap-6 px-4 py-6 md:px-6">
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {products.map((item, index) => (
-            <Card
-              key={item.id}
-              className="group h-full overflow-hidden rounded-[calc(var(--radius)*1.2)] border-border bg-background p-0 ring-0 shadow-[var(--checkout-soft-shadow)] transition-shadow hover:shadow-[var(--checkout-shadow)]"
-            >
-              <Link
-                href={item.href}
-                className="block focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                aria-label={`View ${item.name}`}
+          {products.map((item, index) => {
+            const displayPrice = getDiscountedProductPrice(item)
+
+            return (
+              <Card
+                key={item.id}
+                className="group h-full overflow-hidden rounded-[calc(var(--radius)*1.2)] border-border bg-background p-0 ring-0 shadow-[var(--checkout-soft-shadow)] transition-shadow hover:shadow-[var(--checkout-shadow)]"
               >
-                <CardContent className="p-3">
-                  <div className="relative aspect-[4/3] overflow-hidden rounded-[var(--radius)]">
-                    <Image
-                      src={item.image}
-                      alt={item.name}
-                      fill
-                      priority={index < 2}
-                      className="object-contain p-4 transition-transform duration-300 group-hover:scale-[1.03]"
-                      sizes="(min-width: 1024px) 360px, (min-width: 640px) 50vw, 100vw"
-                    />
-                  </div>
-                </CardContent>
-                <CardHeader className="gap-3 pt-0">
-                  <div className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] gap-x-3 gap-y-2">
-                    <div className="min-w-0">
-                      <CardTitle className="truncate text-lg">
-                        {item.name}
-                      </CardTitle>
-                      <CardDescription className="truncate">
-                        {item.subtitle}
-                      </CardDescription>
+                <Link
+                  href={item.href}
+                  className="block focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                  aria-label={`View ${item.name}`}
+                >
+                  <CardContent className="p-3">
+                    <div className="relative aspect-[4/3] overflow-hidden rounded-[var(--radius)]">
+                      <Image
+                        src={item.image}
+                        alt={item.name}
+                        fill
+                        priority={index < 2}
+                        className="object-contain p-4 transition-transform duration-300 group-hover:scale-[1.03]"
+                        sizes="(min-width: 1024px) 360px, (min-width: 640px) 50vw, 100vw"
+                      />
                     </div>
-                    <p className="shrink-0 text-lg font-semibold tabular-nums">
-                      {formatCurrency(item.price)}
-                    </p>
+                  </CardContent>
+                  <CardHeader className="gap-3 pt-0">
+                    <div className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] gap-x-3 gap-y-2">
+                      <div className="min-w-0">
+                        <CardTitle className="truncate text-lg">
+                          {item.name}
+                        </CardTitle>
+                        <CardDescription className="truncate">
+                          {item.subtitle}
+                        </CardDescription>
+                      </div>
+                      <div className="flex shrink-0 flex-col items-end">
+                        {item.merchantOffer ? (
+                          <span className="text-xs text-muted-foreground line-through">
+                            {formatCurrency(item.price)}
+                          </span>
+                        ) : null}
+                        <p className="text-lg font-semibold tabular-nums">
+                          {formatCurrency(displayPrice)}
+                        </p>
+                      </div>
+                    </div>
+                  </CardHeader>
+                </Link>
+                {item.payInFourEligible ? (
+                  <div className="px-4 pb-4">
+                    <div className="flex min-w-0 items-center gap-2 pt-1">
+                      <button
+                        type="button"
+                        className="shrink-0 rounded-[8px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+                        aria-haspopup="dialog"
+                        aria-expanded={explainerProduct?.id === item.id}
+                        aria-label={`Learn about Pay in 4 for ${item.name}`}
+                        onClick={() => setExplainerProduct(item)}
+                      >
+                        <PayInFourTag />
+                      </button>
+                      <p className="min-w-0 text-sm font-medium text-primary">
+                        4 payments of{" "}
+                        {formatCurrency(splitInstallments(displayPrice)[0])}{" "}
+                        monthly
+                      </p>
+                    </div>
                   </div>
-                </CardHeader>
-              </Link>
-              {item.payInFourEligible ? (
-                <div className="px-4 pb-4">
-                  <div className="flex min-w-0 items-center gap-2 pt-1">
-                    <button
-                      type="button"
-                      className="shrink-0 rounded-[8px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
-                      aria-haspopup="dialog"
-                      aria-expanded={explainerProduct?.id === item.id}
-                      aria-label={`Learn about Pay in 4 for ${item.name}`}
-                      onClick={() => setExplainerProduct(item)}
-                    >
-                      <PayInFourTag />
-                    </button>
-                    <p className="min-w-0 text-sm font-medium text-primary">
-                      4 payments of{" "}
-                      {formatCurrency(splitInstallments(item.price)[0])} monthly
-                    </p>
-                  </div>
-                </div>
-              ) : null}
-            </Card>
-          ))}
+                ) : null}
+              </Card>
+            )
+          })}
         </div>
       </section>
 
@@ -139,7 +163,14 @@ export function ProductLanding() {
 
 function PayInFourTag() {
   return (
-    <Badge className="h-6 gap-1.5 rounded-[8px] border-[hsl(179_98%_36%_/_0.65)] bg-[linear-gradient(135deg,hsl(179_98%_16%)_0%,hsl(179_98%_22%)_52%,hsl(179_98%_30%)_100%)] pl-1 pr-1.5 text-[10px] font-bold italic leading-none text-white shadow-[0_4px_10px_rgb(0_88_87_/_16%)] ring-1 ring-white/35">
+    <Badge
+      className="h-6 gap-1.5 rounded-[8px] pl-1 pr-1.5 text-[10px] font-bold italic leading-none text-white ring-1 ring-white/35"
+      style={{
+        background: "var(--pay-in-four-badge-gradient)",
+        borderColor: "var(--pay-in-four-badge-border)",
+        boxShadow: "var(--pay-in-four-badge-shadow)",
+      }}
+    >
       <PineArrowMark />
       Pay in 4
     </Badge>
@@ -169,6 +200,8 @@ function PayInFourBottomSheet({
   if (!product) {
     return null
   }
+
+  const order = createCheckoutOrder(product)
 
   return (
     <div className="fixed inset-0 z-50 flex items-end justify-center">
@@ -214,12 +247,15 @@ function PayInFourBottomSheet({
           part today, then the remaining three payments monthly.
         </p>
 
-        <PayInFourWidget
-          total={product.price}
-          defaultExpanded
-          embedded
-          directCheckoutHref={`/checkout?product=${product.slug}&direct=pay-in-4`}
-        />
+        <div className="flex flex-col gap-3">
+          <MerchantOfferStrip product={product} />
+          <PayInFourWidget
+            total={order.total}
+            defaultExpanded
+            embedded
+            directCheckoutHref={`/checkout?product=${product.slug}&direct=pay-in-4`}
+          />
+        </div>
       </section>
     </div>
   )

@@ -1,11 +1,17 @@
 "use client"
 
-import { type FormEvent, type ReactNode, useMemo, useState } from "react"
+import {
+  type CSSProperties,
+  type FormEvent,
+  type ReactNode,
+  useMemo,
+  useState,
+} from "react"
 import Image from "next/image"
 import Link from "next/link"
 import {
   ArrowLeft,
-  CheckCircle2,
+  Check,
   ChevronDown,
   Languages,
   LockKeyhole,
@@ -13,6 +19,10 @@ import {
 } from "lucide-react"
 
 import { PaymentMethodCard } from "@/components/checkout/payment-method-card"
+import {
+  PayInFourThemePopover,
+  usePayInFourTheme,
+} from "@/components/pay-in-four-theme"
 import { PayInFourWidget } from "@/components/product/pay-in-four-widget"
 import { Button, buttonVariants } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
@@ -25,6 +35,7 @@ import {
   createCheckoutOrder,
   createPaymentMethods,
   formatCurrency,
+  splitInstallments,
   type Product,
   type PaymentMethod,
 } from "@/data/checkout"
@@ -88,6 +99,85 @@ const supportedBanks = [
   { name: "HDFC Bank", logo: "/bank-logos/hdfc.svg" },
 ]
 
+type SavedPayInFourCard = {
+  id: string
+  bank: string
+  bankLogo: string
+  network: string
+  last4: string
+  expiry: string
+}
+
+const savedPayInFourCards = [
+  {
+    id: "icici-4560",
+    bank: "ICICI Bank",
+    bankLogo: "/bank-logos/icici.svg",
+    network: "Visa",
+    last4: "4560",
+    expiry: "06/25",
+  },
+  {
+    id: "axis-1188",
+    bank: "Axis Bank",
+    bankLogo: "/bank-logos/axis.svg",
+    network: "Visa",
+    last4: "1188",
+    expiry: "09/26",
+  },
+  {
+    id: "hdfc-9021",
+    bank: "HDFC Bank",
+    bankLogo: "/bank-logos/hdfc.svg",
+    network: "Visa",
+    last4: "9021",
+    expiry: "12/27",
+  },
+] satisfies [SavedPayInFourCard, ...SavedPayInFourCard[]]
+
+const defaultSavedPayInFourCard = savedPayInFourCards[0]
+
+const successConfettiPieces = [
+  { x: "-132px", y: "84px", rotate: "-138deg", color: "#017373", delay: "0ms" },
+  { x: "-92px", y: "132px", rotate: "96deg", color: "#f59e0b", delay: "42ms" },
+  { x: "-48px", y: "72px", rotate: "-74deg", color: "#1456b8", delay: "86ms" },
+  { x: "-16px", y: "148px", rotate: "156deg", color: "#d94675", delay: "126ms" },
+  { x: "28px", y: "92px", rotate: "-118deg", color: "#10b981", delay: "24ms" },
+  { x: "68px", y: "136px", rotate: "124deg", color: "#8b5cf6", delay: "70ms" },
+  { x: "112px", y: "80px", rotate: "-92deg", color: "#ef4444", delay: "112ms" },
+  { x: "144px", y: "124px", rotate: "142deg", color: "#0ea5e9", delay: "150ms" },
+  { x: "-118px", y: "184px", rotate: "176deg", color: "#84cc16", delay: "174ms" },
+  { x: "106px", y: "188px", rotate: "-156deg", color: "#f97316", delay: "198ms" },
+]
+
+function addMonths(date: Date, months: number) {
+  const nextDate = new Date(date)
+  nextDate.setMonth(nextDate.getMonth() + months)
+
+  return nextDate
+}
+
+function formatPaymentDate(date: Date) {
+  return new Intl.DateTimeFormat("en-IN", {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+  }).format(date)
+}
+
+function createPaymentSchedule(paymentDate: Date, amount: number) {
+  return [0, 1, 2, 3].map((monthOffset) => ({
+    label: `Payment ${monthOffset + 1}`,
+    date:
+      monthOffset === 0
+        ? "Paid today"
+        : formatPaymentDate(addMonths(paymentDate, monthOffset)),
+    amount,
+    progress: (monthOffset + 1) * 25,
+    status: monthOffset === 0 ? "Done" : "Upcoming",
+  }))
+}
+
 const getStepIndex = (step: CheckoutStep) =>
   checkoutSteps.findIndex((item) => item.id === step)
 
@@ -101,10 +191,16 @@ const formatHeaderCurrency = (amount: number) =>
 
 function CheckoutOrderHeader({
   amount,
+  discountAmount,
+  merchantOfferLabel,
+  mrp,
   subtotal,
   productHref,
 }: {
   amount: number
+  discountAmount: number
+  merchantOfferLabel?: string
+  mrp: number
   subtotal: number
   productHref: string
 }) {
@@ -157,10 +253,20 @@ function CheckoutOrderHeader({
 
         {expanded ? (
           <div className="mt-4 grid gap-2 border-t border-primary-foreground/15 pt-4 text-sm">
-            <HeaderBreakdownRow
-              label="Subtotal"
-              value={formatCurrency(subtotal)}
-            />
+            {discountAmount > 0 ? (
+              <>
+                <HeaderBreakdownRow label="MRP" value={formatCurrency(mrp)} />
+                <HeaderBreakdownRow
+                  label={merchantOfferLabel ?? "Merchant offer"}
+                  value={`-${formatCurrency(discountAmount)}`}
+                />
+              </>
+            ) : (
+              <HeaderBreakdownRow
+                label="Subtotal"
+                value={formatCurrency(subtotal)}
+              />
+            )}
             <HeaderBreakdownRow label="Delivery" value="Included" />
             <HeaderBreakdownRow label="GST" value="Included" />
             <HeaderBreakdownRow
@@ -240,14 +346,17 @@ function FigmaCheckoutBar({
             )
           })}
         </div>
-        <button
-          type="button"
-          className="flex h-8 shrink-0 items-center justify-center gap-1 rounded-[var(--radius)] border bg-background px-2"
-          aria-label="Change language"
-        >
-          <Languages className="size-4" aria-hidden="true" />
-          <ChevronDown className="size-4" aria-hidden="true" />
-        </button>
+        <div className="flex shrink-0 items-center gap-2">
+          <PayInFourThemePopover />
+          <button
+            type="button"
+            className="flex h-8 items-center justify-center gap-1 rounded-[var(--radius)] border bg-background px-2"
+            aria-label="Change language"
+          >
+            <Languages className="size-4" aria-hidden="true" />
+            <ChevronDown className="size-4" aria-hidden="true" />
+          </button>
+        </div>
       </div>
     </nav>
   )
@@ -354,14 +463,186 @@ function CheckoutStepFooter({ children }: { children: ReactNode }) {
   )
 }
 
+function SupportedBanksList() {
+  return (
+    <div className="flex flex-col gap-2">
+      <p className="text-sm font-medium">Supported banks</p>
+      <div className="flex items-center">
+        {supportedBanks.map((bank, index) => (
+          <div
+            key={bank.name}
+            className={cn(
+              "flex size-9 min-w-0 items-center justify-center rounded-full border border-white bg-muted p-2",
+              index > 0 && "-ml-1"
+            )}
+          >
+            <Image
+              src={bank.logo}
+              alt={bank.name}
+              width={48}
+              height={20}
+              className="max-h-4 max-w-7 object-contain"
+            />
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+function NewCardFields({
+  saveCard,
+  onSaveCardChange,
+}: {
+  saveCard: boolean
+  onSaveCardChange: (checked: boolean) => void
+}) {
+  return (
+    <>
+      <FieldGroup className="gap-5">
+        <Field className="gap-2">
+          <FieldLabel className="text-sm font-medium">Card details</FieldLabel>
+          <div className="overflow-hidden rounded-[var(--radius)] border bg-background">
+            <div className="relative">
+              <Input
+                aria-label="Card number"
+                inputMode="numeric"
+                defaultValue="4242 4242 4242 4560"
+                className="h-12 rounded-none border-0 px-4 font-mono text-base tracking-[0.04em] focus-visible:ring-0"
+              />
+              <span className="pointer-events-none absolute right-4 top-1/2 -translate-y-1/2 text-[10px] font-bold uppercase italic text-primary">
+                Visa
+              </span>
+            </div>
+            <div className="grid grid-cols-2 border-t">
+              <Input
+                aria-label="Expiry date"
+                inputMode="numeric"
+                defaultValue="06/25"
+                className="h-12 rounded-none border-0 border-r px-4 font-mono text-base tracking-[0.04em] focus-visible:ring-0"
+              />
+              <Input
+                aria-label="CVV"
+                inputMode="numeric"
+                defaultValue="..."
+                className="h-12 rounded-none border-0 px-4 font-mono text-base tracking-[0.16em] focus-visible:ring-0"
+              />
+            </div>
+          </div>
+        </Field>
+
+        <Field className="gap-2">
+          <FieldLabel className="text-sm font-medium">
+            Card holder&apos;s name
+          </FieldLabel>
+          <Input
+            defaultValue="Product Team"
+            className="h-12 rounded-[var(--radius)] px-4 font-mono text-base"
+          />
+        </Field>
+      </FieldGroup>
+
+      <Field
+        orientation="horizontal"
+        className="items-start gap-3 rounded-[var(--radius)] border p-4"
+      >
+        <Checkbox
+          checked={saveCard}
+          onCheckedChange={(checked) => onSaveCardChange(Boolean(checked))}
+          aria-label="Securely save card"
+          className="mt-0.5"
+        />
+        <div className="min-w-0">
+          <p className="text-sm font-medium">
+            Securely save your card for future payments
+          </p>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Pay faster on Kone for your next purchase
+          </p>
+        </div>
+      </Field>
+    </>
+  )
+}
+
+function SavedCardFields({
+  selectedCardId,
+  onSelectedCardChange,
+}: {
+  selectedCardId: string
+  onSelectedCardChange: (cardId: string) => void
+}) {
+  return (
+    <div className="flex flex-col gap-5">
+      <RadioGroup
+        value={selectedCardId}
+        onValueChange={onSelectedCardChange}
+        className="gap-3"
+        aria-label="Saved Pay in 4 cards"
+      >
+        {savedPayInFourCards.map((card) => (
+          <label
+            key={card.id}
+            htmlFor={`saved-card-${card.id}`}
+            className={cn(
+              "flex cursor-pointer items-center justify-between gap-3 rounded-[16px] border bg-background p-4 transition-colors",
+              selectedCardId === card.id
+                ? "border-primary/35"
+                : "border-border hover:border-primary/25"
+            )}
+          >
+            <div className="flex min-w-0 items-center gap-3">
+              <div className="flex size-11 shrink-0 items-center justify-center rounded-full bg-muted/40">
+                <Image
+                  src={card.bankLogo}
+                  alt={card.bank}
+                  width={48}
+                  height={20}
+                  className="max-h-5 max-w-8 object-contain"
+                />
+              </div>
+              <div className="min-w-0">
+                <p className="text-sm font-semibold">
+                  {card.network} card XXXX {card.last4}
+                </p>
+                <p className="mt-1 text-sm text-muted-foreground">
+                  Expires {card.expiry}
+                </p>
+              </div>
+            </div>
+            <RadioGroupItem
+              id={`saved-card-${card.id}`}
+              value={card.id}
+              className="shrink-0"
+            />
+          </label>
+        ))}
+      </RadioGroup>
+
+      <p className="text-sm leading-6 text-muted-foreground">
+        Saved cards are tokenised as per RBI guidelines. No CVV is required for
+        this payment.
+      </p>
+    </div>
+  )
+}
+
 function CardDetailStep({
   dueToday,
   onBack,
+  onChangePaymentMethod,
+  selectedCardId,
+  onSelectedCardChange,
 }: {
   dueToday: number
   onBack: () => void
+  onChangePaymentMethod?: () => void
+  selectedCardId: string
+  onSelectedCardChange: (cardId: string) => void
 }) {
+  const { cardJourney } = usePayInFourTheme()
   const [saveCard, setSaveCard] = useState(false)
+  const isSavedCardJourney = cardJourney === "saved-card"
 
   return (
     <>
@@ -374,98 +655,45 @@ function CardDetailStep({
             height={32}
             className="size-8"
           />
-          <h2 className="text-base font-semibold leading-6 text-foreground">
-            Add a new credit card for Pay in 4 payment
-          </h2>
-        </div>
-
-        <div className="flex flex-col gap-2">
-          <p className="text-sm font-medium">Supported banks</p>
-          <div className="flex items-center">
-            {supportedBanks.map((bank, index) => (
-              <div
-                key={bank.name}
-                className={cn(
-                  "flex size-9 min-w-0 items-center justify-center rounded-full border border-white bg-muted p-2",
-                  index > 0 && "-ml-1"
-                )}
+          <div className="flex flex-col gap-1">
+            <h2 className="text-base font-semibold leading-6 text-foreground">
+              {isSavedCardJourney
+                ? "Pay in 4 with your saved card"
+                : "Add a new credit card for Pay in 4 payment"}
+            </h2>
+            {isSavedCardJourney ? (
+              <p className="max-w-sm text-sm leading-6 text-muted-foreground">
+                Choose a saved card to split this purchase into four payments.
+              </p>
+            ) : null}
+            {onChangePaymentMethod ? (
+              <Button
+                type="button"
+                variant="link"
+                size="sm"
+                className="h-auto justify-start px-0 py-0 text-sm font-semibold leading-6"
+                onClick={onChangePaymentMethod}
               >
-                <Image
-                  src={bank.logo}
-                  alt={bank.name}
-                  width={48}
-                  height={20}
-                  className="max-h-4 max-w-7 object-contain"
-                />
-              </div>
-            ))}
+                Change method
+              </Button>
+            ) : null}
           </div>
         </div>
 
-        <FieldGroup className="gap-5">
-          <Field className="gap-2">
-            <FieldLabel className="text-sm font-medium">
-              Card details
-            </FieldLabel>
-            <div className="overflow-hidden rounded-[var(--radius)] border bg-background">
-              <div className="relative">
-                <Input
-                  aria-label="Card number"
-                  inputMode="numeric"
-                  defaultValue="4242 4242 4242 4560"
-                  className="h-12 rounded-none border-0 px-4 font-mono text-base tracking-[0.04em] focus-visible:ring-0"
-                />
-                <span className="pointer-events-none absolute right-4 top-1/2 -translate-y-1/2 text-[10px] font-bold uppercase italic text-primary">
-                  Visa
-                </span>
-              </div>
-              <div className="grid grid-cols-2 border-t">
-                <Input
-                  aria-label="Expiry date"
-                  inputMode="numeric"
-                  defaultValue="06/25"
-                  className="h-12 rounded-none border-0 border-r px-4 font-mono text-base tracking-[0.04em] focus-visible:ring-0"
-                />
-                <Input
-                  aria-label="CVV"
-                  inputMode="numeric"
-                  defaultValue="•••"
-                  className="h-12 rounded-none border-0 px-4 font-mono text-base tracking-[0.16em] focus-visible:ring-0"
-                />
-              </div>
-            </div>
-          </Field>
-
-          <Field className="gap-2">
-            <FieldLabel className="text-sm font-medium">
-              Card holder&apos;s name
-            </FieldLabel>
-            <Input
-              defaultValue="Product Team"
-              className="h-12 rounded-[var(--radius)] px-4 font-mono text-base"
-            />
-          </Field>
-        </FieldGroup>
-
-        <Field
-          orientation="horizontal"
-          className="items-start gap-3 rounded-[var(--radius)] border p-4"
-        >
-          <Checkbox
-            checked={saveCard}
-            onCheckedChange={(checked) => setSaveCard(Boolean(checked))}
-            aria-label="Securely save card"
-            className="mt-0.5"
+        {isSavedCardJourney ? (
+          <SavedCardFields
+            selectedCardId={selectedCardId}
+            onSelectedCardChange={onSelectedCardChange}
           />
-          <div className="min-w-0">
-            <p className="text-sm font-medium">
-              Securely save your card for future payments
-            </p>
-            <p className="mt-1 text-sm text-muted-foreground">
-              Pay faster on Kone for your next purchase
-            </p>
-          </div>
-        </Field>
+        ) : (
+          <>
+            <SupportedBanksList />
+            <NewCardFields
+              saveCard={saveCard}
+              onSaveCardChange={setSaveCard}
+            />
+          </>
+        )}
       </section>
 
       <CheckoutStepFooter>
@@ -494,57 +722,247 @@ function CardDetailStep({
   )
 }
 
+function SuccessConfetti() {
+  return (
+    <div
+      aria-hidden="true"
+      className="pointer-events-none absolute inset-x-0 top-0 h-64 overflow-hidden"
+    >
+      {successConfettiPieces.map((piece, index) => (
+        <span
+          key={`${piece.x}-${piece.y}-${index}`}
+          className="success-confetti-piece absolute left-1/2 top-8 h-2.5 w-1.5 rounded-[2px]"
+          style={
+            {
+              "--confetti-x": piece.x,
+              "--confetti-y": piece.y,
+              "--confetti-rotate": piece.rotate,
+              animationDelay: piece.delay,
+              backgroundColor: piece.color,
+            } as CSSProperties
+          }
+        />
+      ))}
+      <style>{`
+        @keyframes success-confetti {
+          0% {
+            opacity: 0;
+            transform: translate3d(0, -12px, 0) rotate(0deg) scale(0.7);
+          }
+          15% {
+            opacity: 1;
+          }
+          100% {
+            opacity: 0;
+            transform: translate3d(var(--confetti-x), var(--confetti-y), 0) rotate(var(--confetti-rotate)) scale(1);
+          }
+        }
+
+        .success-confetti-piece {
+          opacity: 0;
+          animation: success-confetti 1400ms cubic-bezier(0.16, 1, 0.3, 1) forwards;
+        }
+
+        @media (prefers-reduced-motion: reduce) {
+          .success-confetti-piece {
+            animation: none;
+            opacity: 0.7;
+            transform: translate3d(var(--confetti-x), var(--confetti-y), 0) rotate(var(--confetti-rotate));
+          }
+        }
+      `}</style>
+    </div>
+  )
+}
+
+function SuccessInstallmentProgress({
+  value,
+  paid = false,
+}: {
+  value: number
+  paid?: boolean
+}) {
+  if (paid) {
+    return (
+      <span className="mt-px flex size-[18px] shrink-0 items-center justify-center rounded-full bg-[var(--pay-in-four-progress)] text-white">
+        <Check className="size-3" strokeWidth={3} aria-hidden="true" />
+      </span>
+    )
+  }
+
+  return (
+    <span
+      className="mt-px size-[18px] shrink-0 rounded-full"
+      style={{
+        background: `conic-gradient(var(--pay-in-four-progress) ${value}%, var(--pay-in-four-progress-track) 0)`,
+      }}
+      aria-hidden="true"
+    />
+  )
+}
+
 function PaymentSuccessStep({
   dueToday,
-  total,
-  productHref,
+  paymentDate,
+  savedCard,
 }: {
   dueToday: number
-  total: number
-  productHref: string
+  paymentDate: Date
+  savedCard: SavedPayInFourCard
 }) {
+  const paymentSchedule = createPaymentSchedule(paymentDate, dueToday)
+  const donePayments = paymentSchedule.filter(
+    (payment) => payment.status === "Done"
+  )
+  const upcomingPayments = paymentSchedule.filter(
+    (payment) => payment.status === "Upcoming"
+  )
+
   return (
-    <section className="flex min-h-[360px] flex-col items-center justify-center gap-5 text-center">
-      <div className="flex size-16 items-center justify-center rounded-full bg-primary/10 text-primary">
-        <CheckCircle2 className="size-9" aria-hidden="true" />
-      </div>
-      <div className="max-w-sm">
-        <h2 className="text-2xl font-semibold tracking-tight">
-          Payment successful
-        </h2>
-        <p className="mt-2 text-sm leading-6 text-muted-foreground">
-          Your Pay in 4 plan is active. {formatCurrency(dueToday)} was paid
-          today and the remaining {formatCurrency(total - dueToday)} is split
-          across three upcoming payments.
-        </p>
-      </div>
-      <Card className="w-full max-w-sm rounded-[var(--radius)] border-border ring-0 shadow-[var(--checkout-shadow)]">
-        <CardContent className="grid gap-3 text-sm">
-          <div className="flex items-center justify-between gap-3">
-            <span className="text-muted-foreground">Paid today</span>
-            <span className="font-semibold">{formatCurrency(dueToday)}</span>
+    <>
+      <section className="relative isolate flex min-h-[420px] flex-col items-center justify-center gap-5 overflow-visible text-center">
+        <SuccessConfetti />
+        <div className="relative z-10 flex size-16 items-center justify-center rounded-full bg-primary/10 text-primary">
+          <Check className="size-9" aria-hidden="true" />
+        </div>
+        <div className="relative z-10 flex max-w-sm flex-col items-center gap-3">
+          <h2 className="text-2xl font-semibold tracking-tight">
+            Payment successful
+          </h2>
+        </div>
+        <Card className="relative z-10 w-full max-w-sm rounded-[var(--radius)] border-border ring-0 shadow-[var(--checkout-shadow)]">
+          <CardContent className="grid gap-3 text-sm">
+            <div className="flex items-center justify-between gap-3">
+              <span className="text-muted-foreground">Paid today</span>
+              <span className="font-semibold">{formatCurrency(dueToday)}</span>
+            </div>
+            <div className="flex items-center justify-between gap-3">
+              <span className="text-muted-foreground">Payment method</span>
+              <span className="flex items-center gap-2 font-mono font-semibold tracking-[0.04em]">
+                <span className="flex size-7 items-center justify-center rounded-full bg-muted/40">
+                  <Image
+                    src={savedCard.bankLogo}
+                    alt={savedCard.bank}
+                    width={36}
+                    height={15}
+                    className="max-h-4 max-w-6 object-contain"
+                  />
+                </span>
+                <span>XXXX {savedCard.last4}</span>
+              </span>
+            </div>
+            <div className="flex items-center justify-between gap-3">
+              <span className="text-muted-foreground">Status</span>
+              <span className="font-semibold text-primary">Confirmed</span>
+            </div>
+          </CardContent>
+        </Card>
+
+        <section className="relative z-10 flex w-full max-w-sm flex-col gap-1 rounded-[15px] bg-[var(--pay-in-four-panel)] p-1 text-left">
+          <div className="flex w-full items-center justify-between gap-3 p-2">
+            <div className="flex min-w-0 items-center gap-2">
+              <p className="shrink-0 text-sm font-bold italic leading-[18px] text-[var(--pay-in-four-panel-foreground)]">
+                Pay in 4
+              </p>
+              <span className="shrink-0 rounded-full bg-white/20 px-2 py-0.5 text-[10px] font-semibold leading-4 text-white">
+                0% interest
+              </span>
+            </div>
+            <div className="flex shrink-0 items-center gap-1.5">
+              <p className="text-xs font-normal leading-[18px] text-[var(--pay-in-four-panel-foreground)] opacity-50">
+                powered by
+              </p>
+              <Image
+                src="/checkout-gateway/pinelabs-logo.svg"
+                alt="Pine Labs"
+                width={46}
+                height={12}
+                className="h-[11.7px] w-[46px] shrink-0"
+              />
+            </div>
           </div>
-          <div className="flex items-center justify-between gap-3">
-            <span className="text-muted-foreground">Payment method</span>
-            <span className="font-semibold">Visa ending 4560</span>
+
+          <div className="w-full rounded-xl bg-[var(--pay-in-four-surface)] px-3 pb-3 pt-3">
+            <h3 className="text-sm font-semibold leading-5 text-[#1c1c1c]">
+              Pay in 4 schedule
+            </h3>
+            <div className="mt-3 flex w-full flex-col">
+              {donePayments.map((payment) => (
+                <div
+                  key={payment.label}
+                  className="flex w-full items-start justify-between gap-3 py-2"
+                >
+                  <div className="flex min-w-0 items-start gap-[7px]">
+                    <SuccessInstallmentProgress
+                      value={payment.progress}
+                      paid
+                    />
+                    <div className="min-w-0">
+                      <p className="truncate text-xs font-medium leading-5 text-[#1c1c1c]">
+                        {payment.label}
+                      </p>
+                      <p className="truncate text-xs font-medium leading-5 text-[rgba(28,28,28,0.5)]">
+                        {payment.date}
+                      </p>
+                    </div>
+                  </div>
+                  <p className="shrink-0 text-sm font-semibold leading-5 text-[#1c1c1c] tabular-nums">
+                    {formatCurrency(payment.amount)}
+                  </p>
+                </div>
+              ))}
+
+              <div className="flex items-center gap-2 py-2">
+                <p className="text-[10px] font-semibold uppercase tracking-[0.08em] text-[rgba(28,28,28,0.42)]">
+                  Upcoming
+                </p>
+                <span className="h-px flex-1 bg-[rgba(28,28,28,0.05)]" />
+              </div>
+              {upcomingPayments.map((payment, index) => (
+                <div
+                  key={payment.label}
+                  className={cn(
+                    "flex w-full items-start justify-between gap-3 py-2",
+                    index < upcomingPayments.length - 1 &&
+                      "border-b border-[rgba(28,28,28,0.05)] pb-[9px]"
+                  )}
+                >
+                  <div className="flex min-w-0 items-start gap-[7px]">
+                    <SuccessInstallmentProgress value={payment.progress} />
+                    <div className="min-w-0">
+                      <p className="truncate text-xs font-medium leading-5 text-[#1c1c1c]">
+                        {payment.label}
+                      </p>
+                      <p className="truncate text-xs font-medium leading-5 text-[rgba(28,28,28,0.5)]">
+                        {payment.date}
+                      </p>
+                    </div>
+                  </div>
+                  <p className="shrink-0 text-sm font-semibold leading-5 text-[#1c1c1c] tabular-nums">
+                    {formatCurrency(payment.amount)}
+                  </p>
+                </div>
+              ))}
+            </div>
           </div>
-          <div className="flex items-center justify-between gap-3">
-            <span className="text-muted-foreground">Status</span>
-            <span className="font-semibold text-primary">Confirmed</span>
-          </div>
-        </CardContent>
-      </Card>
-      <Link
-        href={productHref}
-        className={buttonVariants({
-          variant: "outline",
-          size: "lg",
-          className: "h-12 rounded-full px-6",
-        })}
-      >
-        Back to product
-      </Link>
-    </section>
+        </section>
+      </section>
+
+      <CheckoutStepFooter>
+        <Link
+          href="/"
+          className={cn(
+            buttonVariants({
+              size: "lg",
+              className:
+                "h-12 w-full rounded-full shadow-[var(--checkout-button-shadow)]",
+            })
+          )}
+        >
+          Buy other products
+        </Link>
+      </CheckoutStepFooter>
+    </>
   )
 }
 
@@ -558,6 +976,10 @@ export function PayInFourDemo({
   const [paymentMethod, setPaymentMethod] =
     useState<PaymentMethod>("pay-in-4")
   const [paymentStage, setPaymentStage] = useState<PaymentStage>("methods")
+  const [selectedSavedCardId, setSelectedSavedCardId] = useState(
+    defaultSavedPayInFourCard.id
+  )
+  const [successDate, setSuccessDate] = useState<Date | null>(null)
   const order = useMemo(() => createCheckoutOrder(product), [product])
   const paymentMethods = useMemo(() => createPaymentMethods(order), [order])
   const recommendedPaymentMethods = useMemo(
@@ -568,10 +990,18 @@ export function PayInFourDemo({
     () => paymentMethods.filter((method) => method.value !== "pay-in-4"),
     [paymentMethods]
   )
+  const selectedSavedCard =
+    savedPayInFourCards.find((card) => card.id === selectedSavedCardId) ??
+    defaultSavedPayInFourCard
+  const isPaymentSuccess = checkoutStep === "pay" && paymentStage === "success"
+  const payInFourInstallments = useMemo(
+    () => splitInstallments(order.total),
+    [order.total]
+  )
 
   const dueToday =
     paymentMethod === "pay-in-4"
-      ? order.total / 4
+      ? payInFourInstallments[0]
       : paymentMethod === "bnpl"
         ? 0
       : order.total
@@ -594,6 +1024,7 @@ export function PayInFourDemo({
 
     if (stepIndex <= highestStepIndex) {
       setCheckoutStep(step)
+      setSuccessDate(null)
 
       if (directPayInFour && step === "pay") {
         setPaymentMethod("pay-in-4")
@@ -603,6 +1034,17 @@ export function PayInFourDemo({
 
       setPaymentStage("methods")
     }
+  }
+
+  function completePayment() {
+    setSuccessDate(new Date())
+    setPaymentStage("success")
+  }
+
+  function handleChangePaymentMethod() {
+    setCheckoutStep("pay")
+    setPaymentMethod("pay-in-4")
+    setPaymentStage("methods")
   }
 
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
@@ -628,12 +1070,12 @@ export function PayInFourDemo({
         return
       }
 
-      setPaymentStage("success")
+      completePayment()
       return
     }
 
     if (checkoutStep === "pay" && paymentStage === "card") {
-      setPaymentStage("success")
+      completePayment()
     }
   }
 
@@ -644,11 +1086,16 @@ export function PayInFourDemo({
         highestStepIndex={highestStepIndex}
         onStepSelect={handleStepSelect}
       />
-      <CheckoutOrderHeader
-        amount={order.total}
-        subtotal={order.subtotal}
-        productHref={product.href}
-      />
+      {!isPaymentSuccess ? (
+        <CheckoutOrderHeader
+          amount={order.total}
+          discountAmount={order.discountAmount}
+          merchantOfferLabel={order.merchantOffer?.label}
+          mrp={order.mrp}
+          subtotal={order.subtotal}
+          productHref={product.href}
+        />
+      ) : null}
       <main className="mx-auto w-full max-w-6xl px-4 pb-32 pt-6 md:px-6 md:py-6">
         <section className="flex min-w-0 flex-col gap-4">
           <form onSubmit={handleSubmit} className="flex flex-col gap-4">
@@ -785,6 +1232,11 @@ export function PayInFourDemo({
             {checkoutStep === "pay" && paymentStage === "card" ? (
               <CardDetailStep
                 dueToday={dueToday}
+                selectedCardId={selectedSavedCardId}
+                onSelectedCardChange={setSelectedSavedCardId}
+                onChangePaymentMethod={
+                  directPayInFour ? handleChangePaymentMethod : undefined
+                }
                 onBack={() => {
                   if (directPayInFour) {
                     setCheckoutStep("address")
@@ -800,8 +1252,8 @@ export function PayInFourDemo({
             {checkoutStep === "pay" && paymentStage === "success" ? (
               <PaymentSuccessStep
                 dueToday={dueToday}
-                total={order.total}
-                productHref={product.href}
+                paymentDate={successDate ?? new Date()}
+                savedCard={selectedSavedCard}
               />
             ) : null}
           </form>

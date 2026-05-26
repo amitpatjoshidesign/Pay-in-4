@@ -37,13 +37,13 @@ export function PayInFourWidget({
   return (
     <div
       className={cn(
-        "flex w-full flex-col gap-1 rounded-[15px] bg-[#015857] p-1",
+        "flex w-full flex-col gap-1 rounded-[15px] bg-[var(--pay-in-four-panel)] p-1",
         !embedded && "shadow-none"
       )}
     >
       <div className="flex w-full items-center justify-between gap-3 p-2">
         <div className="flex min-w-0 items-center gap-2">
-          <p className="shrink-0 text-sm font-bold italic leading-[18px] text-[#e4faf3]">
+          <p className="shrink-0 text-sm font-bold italic leading-[18px] text-[var(--pay-in-four-panel-foreground)]">
             Pay in 4
           </p>
           <span className="shrink-0 rounded-full bg-white/20 px-2 py-0.5 text-[10px] font-semibold leading-4 text-white">
@@ -51,7 +51,7 @@ export function PayInFourWidget({
           </span>
         </div>
         <div className="flex shrink-0 items-center gap-1.5">
-          <p className="text-xs font-normal leading-[18px] text-[#e4faf3]/50">
+          <p className="text-xs font-normal leading-[18px] text-[var(--pay-in-four-panel-foreground)] opacity-50">
             powered by
           </p>
           <Image
@@ -66,7 +66,7 @@ export function PayInFourWidget({
 
       <div
         className={cn(
-          "w-full rounded-xl bg-[#e4faf3]",
+          "w-full rounded-xl bg-[var(--pay-in-four-surface)]",
           expanded ? "px-3 pb-3 pt-3" : "p-3"
         )}
       >
@@ -114,12 +114,12 @@ export function PayInFourWidget({
         ) : null}
 
         {directCheckoutHref ? (
-          <div className="mt-3 flex justify-center border-t border-[#017373]/20 pt-2">
+          <div className="mt-3 flex justify-center border-t border-[color:var(--pay-in-four-surface-border)] pt-2">
             <Button
               render={<Link href={directCheckoutHref} />}
               nativeButton={false}
               size="sm"
-              className="h-8 w-fit rounded-[10px] bg-transparent px-0 text-sm font-semibold text-[#015857] shadow-none hover:bg-transparent hover:text-[#015857]"
+              className="h-8 w-fit rounded-[10px] bg-transparent px-0 text-sm font-semibold text-[var(--pay-in-four-action)] shadow-none hover:bg-transparent hover:text-[var(--pay-in-four-action)]"
             >
               Buy now
             </Button>
@@ -135,7 +135,7 @@ function InstallmentProgress({ value }: { value: number }) {
     <span
       className="size-[18px] shrink-0 rounded-full"
       style={{
-        background: `conic-gradient(#017373 ${value}%, rgba(1,115,115,0.18) 0)`,
+        background: `conic-gradient(var(--pay-in-four-progress) ${value}%, var(--pay-in-four-progress-track) 0)`,
       }}
       aria-hidden="true"
     />

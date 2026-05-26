@@ -55,15 +55,32 @@ export function OrderSummary({
               Scheduled delivery
             </Badge>
           </div>
-          <p className="font-medium tabular-nums">
-            {formatCurrency(order.subtotal)}
-          </p>
+          <div className="flex shrink-0 flex-col items-end">
+            {order.discountAmount > 0 ? (
+              <span className="text-xs text-muted-foreground line-through">
+                {formatCurrency(order.mrp)}
+              </span>
+            ) : null}
+            <p className="font-medium tabular-nums">
+              {formatCurrency(order.subtotal)}
+            </p>
+          </div>
         </div>
 
         <Separator />
 
         <div className="grid gap-2 text-sm">
-          <SummaryRow label="Subtotal" value={order.subtotal} />
+          {order.discountAmount > 0 ? (
+            <>
+              <SummaryRow label="MRP" value={order.mrp} />
+              <SummaryRow
+                label={order.merchantOffer?.label ?? "Merchant offer"}
+                value={`-${formatCurrency(order.discountAmount)}`}
+              />
+            </>
+          ) : (
+            <SummaryRow label="Subtotal" value={order.subtotal} />
+          )}
           <SummaryRow label="Delivery" value={order.delivery} included />
           <SummaryRow label="GST" value={order.gst} included />
           <SummaryRow
@@ -93,14 +110,18 @@ function SummaryRow({
   included,
 }: {
   label: string
-  value: number
+  value: number | string
   included?: boolean
 }) {
   return (
     <div className="flex items-center justify-between text-muted-foreground">
       <span>{label}</span>
       <span className="tabular-nums">
-        {included ? "Included" : formatCurrency(value)}
+        {included
+          ? "Included"
+          : typeof value === "number"
+            ? formatCurrency(value)
+            : value}
       </span>
     </div>
   )

@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Script from "next/script";
 import { Inter } from "next/font/google";
 import { AgentationToolbar } from "@/components/agentation-toolbar";
+import { PayInFourThemeProvider } from "@/components/pay-in-four-theme";
 import "./globals.css";
 
 const inter = Inter({
@@ -25,14 +26,16 @@ export default function RootLayout({
       className={`${inter.variable} h-full antialiased`}
     >
       <body className="min-h-full flex flex-col">
-        {children}
-        <AgentationToolbar />
-        {process.env.NODE_ENV === "development" ? (
-          <Script
-            src="https://mcp.figma.com/mcp/html-to-design/capture.js"
-            strategy="afterInteractive"
-          />
-        ) : null}
+        <PayInFourThemeProvider>
+          {children}
+          <AgentationToolbar />
+          {process.env.NODE_ENV === "development" ? (
+            <Script
+              src="https://mcp.figma.com/mcp/html-to-design/capture.js"
+              strategy="afterInteractive"
+            />
+          ) : null}
+        </PayInFourThemeProvider>
       </body>
     </html>
   )

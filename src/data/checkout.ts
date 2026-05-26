@@ -16,6 +16,12 @@ export type PaymentMethod =
   | "wallet"
   | "netbanking"
 
+export type MerchantOffer = {
+  type: "percent"
+  value: number
+  label: string
+}
+
 export type Product = {
   id: string
   slug: string
@@ -25,6 +31,7 @@ export type Product = {
   longDescription: string
   image: string
   price: number
+  merchantOffer?: MerchantOffer
   href: string
   payInFourEligible?: boolean
   features: string[]
@@ -38,6 +45,9 @@ export type CheckoutOrder = {
   merchant: string
   itemName: string
   itemDescription: string
+  mrp: number
+  merchantOffer?: MerchantOffer
+  discountAmount: number
   subtotal: number
   delivery: number
   gst: number
@@ -76,6 +86,11 @@ export const products: Product[] = [
       "A low-profile three-seat sofa with warm ivory boucle upholstery, rounded arms, plush block cushions, and slim natural oak legs.",
     image: "/products/marlow-boucle-sofa.png",
     price: 89999,
+    merchantOffer: {
+      type: "percent",
+      value: 10,
+      label: "10% off on MRP",
+    },
     href: "/product/marlow-boucle-sofa",
     payInFourEligible: true,
     features: [
@@ -196,16 +211,38 @@ export function getProductBySlug(slug?: string) {
   return products.find((item) => item.slug === slug)
 }
 
+export function getMerchantOfferDiscount(product: Product) {
+  if (!product.merchantOffer) {
+    return 0
+  }
+
+  if (product.merchantOffer.type === "percent") {
+    return Math.round((product.price * product.merchantOffer.value) / 100)
+  }
+
+  return 0
+}
+
+export function getDiscountedProductPrice(product: Product) {
+  return product.price - getMerchantOfferDiscount(product)
+}
+
 export function createCheckoutOrder(product: Product): CheckoutOrder {
+  const discountAmount = getMerchantOfferDiscount(product)
+  const subtotal = product.price - discountAmount
+
   return {
     merchant: "Luma Home",
     itemName: product.name,
     itemDescription: product.subtitle,
-    subtotal: product.price,
+    mrp: product.price,
+    merchantOffer: product.merchantOffer,
+    discountAmount,
+    subtotal,
     delivery: 0,
     gst: 0,
     protection: 0,
-    total: product.price,
+    total: subtotal,
   }
 }
 
