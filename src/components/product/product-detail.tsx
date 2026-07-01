@@ -1,5 +1,9 @@
+"use client"
+
+import { useState } from "react"
 import Image from "next/image"
 import Link from "next/link"
+import { useRouter } from "next/navigation"
 import {
   ArrowLeft,
   ArrowRight,
@@ -9,10 +13,14 @@ import {
   Sofa,
 } from "lucide-react"
 
+import { CartButton } from "@/components/cart/cart-button"
+import { useCart } from "@/components/cart/cart-context"
 import { PayInFourThemePopover } from "@/components/pay-in-four-theme"
+import { usePayInFourTheme } from "@/components/pay-in-four-theme"
 import { PayInFourWidget } from "@/components/product/pay-in-four-widget"
 import { ProductBrand } from "@/components/product/product-brand"
-import { Button } from "@/components/ui/button"
+import { ActionToast } from "@/components/ui/action-toast"
+import { Button, buttonVariants } from "@/components/ui/button"
 import {
   Card,
   CardContent,
@@ -49,13 +57,39 @@ const compactFeatureLabels: Record<string, string> = {
   "Tapered brass legs": "Brass legs",
 }
 
+const supportedBanks = [
+  { name: "ICICI Bank", logo: "/bank-logos/icici.svg" },
+  { name: "SBI", logo: "/bank-logos/sbi.svg" },
+  { name: "Axis Bank", logo: "/bank-logos/axis.svg" },
+  { name: "Kotak", logo: "/bank-logos/kotak.svg" },
+  { name: "HDFC Bank", logo: "/bank-logos/hdfc.svg" },
+]
+
 type ProductDetailProps = {
   product: Product
 }
 
 export function ProductDetail({ product }: ProductDetailProps) {
-  const order = createCheckoutOrder(product)
+  const router = useRouter()
+  const { merchantOfferEnabled } = usePayInFourTheme()
+  const { items, addItem } = useCart()
+  const [showCartToast, setShowCartToast] = useState(false)
+  const order = createCheckoutOrder(product, merchantOfferEnabled)
   const productHighlights = product.features.slice(0, 4)
+  const isInCart = items.some((item) => item.product.id === product.id)
+
+  function handleAddToCart() {
+    addItem(product)
+    setShowCartToast(true)
+  }
+
+  function handleBuyNow() {
+    if (!isInCart) {
+      addItem(product)
+    }
+
+    router.push("/checkout")
+  }
 
   return (
     <main className="min-h-screen bg-background">
@@ -71,7 +105,8 @@ export function ProductDetail({ product }: ProductDetailProps) {
             <ArrowLeft aria-hidden="true" />
           </Button>
           <ProductBrand />
-          <div className="absolute right-4 md:right-6">
+          <div className="absolute right-4 flex items-center gap-2 md:right-6">
+            <CartButton />
             <PayInFourThemePopover />
           </div>
         </div>
@@ -100,18 +135,48 @@ export function ProductDetail({ product }: ProductDetailProps) {
                 <h1 className="text-2xl font-bold tracking-tight md:text-5xl">
                   {product.name}
                 </h1>
+                <p className="mt-2 text-sm text-muted-foreground md:text-base">
+                  {product.subtitle}
+                </p>
+                <p className="mt-4 text-3xl font-bold tracking-tight md:text-4xl">
+                  {formatCurrency(order.total)}
+                </p>
                 <p className="mt-3 max-w-xl line-clamp-3 text-base leading-6 text-muted-foreground">
                   {product.longDescription}
                 </p>
               </div>
             </div>
 
-            <PayInFourWidget
-              total={order.payInFourTotal}
-              originalTotal={order.total}
-              offerPercent={product.merchantOffer?.value}
-              directCheckoutHref={`/checkout?product=${product.slug}&direct=pay-in-4`}
-            />
+            {order.pay4Eligible ? (
+              <PayInFourWidget
+                total={order.payInFourTotal}
+                originalTotal={order.total}
+                offerPercent={order.merchantOffer?.value}
+                directCheckoutHref="/checkout?entry=pay4"
+                supportingContent={
+                  <div className="flex items-center">
+                    {supportedBanks.map((bank, index) => (
+                      <div
+                        key={bank.name}
+                        className="flex size-8 min-w-0 items-center justify-center rounded-full border bg-white p-1.5"
+                        style={{
+                          marginLeft: index > 0 ? "-4px" : undefined,
+                          borderColor: "var(--pay-in-four-surface)",
+                        }}
+                      >
+                        <Image
+                          src={bank.logo}
+                          alt={bank.name}
+                          width={48}
+                          height={20}
+                          className="max-h-3.5 max-w-6 object-contain"
+                        />
+                      </div>
+                    ))}
+                  </div>
+                }
+              />
+            ) : null}
 
             <div className="grid grid-cols-2 gap-3">
               {productHighlights.map((feature, index) => {
@@ -137,21 +202,33 @@ export function ProductDetail({ product }: ProductDetailProps) {
         </div>
       </section>
 
+      {showCartToast ? (
+        <ActionToast
+          title={`${product.name} added to cart`}
+          actionHref="/cart"
+          actionLabel="Go to cart"
+          onDismiss={() => setShowCartToast(false)}
+        />
+      ) : null}
+
       <footer className="fixed inset-x-0 bottom-0 z-50 border-t bg-background p-4 pb-[calc(1rem+env(safe-area-inset-bottom))] shadow-[0_-16px_40px_rgba(18,23,21,0.12)] md:static md:border-t-0 md:pt-0 md:shadow-none">
-        <div className="mx-auto flex w-full max-w-6xl items-center justify-between gap-3 md:px-6">
-          <div className="flex min-w-0 flex-col">
-            <span className="text-sm text-muted-foreground">Total</span>
-            <span className="text-2xl font-bold">
-              {formatCurrency(order.total)}
-            </span>
-          </div>
+        <div className="mx-auto flex w-full max-w-6xl items-center gap-3 md:px-6">
           <Button
-            render={<Link href={`/checkout?product=${product.slug}`} />}
+            type="button"
+            variant="outline"
             size="lg"
-            className="h-12 shrink-0 rounded-full px-5 shadow-[var(--checkout-button-shadow)]"
-            nativeButton={false}
+            className="h-12 flex-1 rounded-full px-5"
+            onClick={handleAddToCart}
           >
-            Continue to checkout
+            Add to cart
+          </Button>
+          <Button
+            type="button"
+            size="lg"
+            className="h-12 flex-1 rounded-full px-5 shadow-[var(--checkout-button-shadow)]"
+            onClick={handleBuyNow}
+          >
+            Buy now
             <ArrowRight data-icon="inline-end" />
           </Button>
         </div>

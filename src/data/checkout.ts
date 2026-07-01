@@ -33,7 +33,6 @@ export type Product = {
   price: number
   merchantOffer?: MerchantOffer
   href: string
-  payInFourEligible?: boolean
   features: string[]
   specs: Array<{
     label: string
@@ -45,6 +44,7 @@ export type CheckoutOrder = {
   merchant: string
   itemName: string
   itemDescription: string
+  pay4Eligible: boolean
   mrp: number
   merchantOffer?: MerchantOffer
   payInFourDiscountAmount: number
@@ -56,11 +56,16 @@ export type CheckoutOrder = {
   total: number
 }
 
+export type CartItem = {
+  product: Product
+  quantity: number
+}
+
 export type PaymentMethodOption = {
   id: string
   value: PaymentMethod
   title: string
-  description: string
+  description?: string
   detail: string
   badge?: string
   offer?: string
@@ -75,6 +80,16 @@ export type Installment = {
   status: string
   icon: LucideIcon
 }
+
+export type Pay4BreakdownDisplay = {
+  orderValue: number
+  amountChargedToday: number
+  pay4Benefit: number
+  monthlyInstallment: number
+  totalRepayment: number
+}
+
+export const PAY4_ELIGIBILITY_THRESHOLD = 5000
 
 export const products: Product[] = [
   {
@@ -93,7 +108,6 @@ export const products: Product[] = [
       label: "10% off on MRP",
     },
     href: "/product/marlow-boucle-sofa",
-    payInFourEligible: true,
     features: [
       "Three-seat frame",
       "Ivory boucle upholstery",
@@ -105,6 +119,102 @@ export const products: Product[] = [
       { label: "Seats", value: "3" },
       { label: "Fabric", value: "Boucle" },
       { label: "Feel", value: "Plush" },
+    ],
+  },
+  {
+    id: "luna-ceramic-table-lamp",
+    slug: "luna-ceramic-table-lamp",
+    name: "Luna Ceramic Table Lamp",
+    subtitle: "Sand glaze · Bedside lamp",
+    description: "Soft-glow ceramic lamp with a warm linen shade.",
+    longDescription:
+      "A compact bedside lamp with a sand-glazed ceramic base, tapered linen shade, and warm ambient throw for reading nooks and side tables.",
+    image: "/products/luna-ceramic-table-lamp.png",
+    price: 3299,
+    href: "/product/luna-ceramic-table-lamp",
+    features: [
+      "Ceramic base",
+      "Warm linen shade",
+      "Bedside scale",
+      "Inline switch cord",
+      "Soft ambient glow",
+    ],
+    specs: [
+      { label: "Type", value: "Table lamp" },
+      { label: "Finish", value: "Sand glaze" },
+      { label: "Height", value: "38 cm" },
+    ],
+  },
+  {
+    id: "solis-arched-floor-lamp",
+    slug: "solis-arched-floor-lamp",
+    name: "Solis Arched Floor Lamp",
+    subtitle: "Matte black · Accent floor lamp",
+    description: "Slim arched lamp for corners and reading chairs.",
+    longDescription:
+      "A matte black arched floor lamp with a focused dome shade and slim weighted base, designed to bring warm directed light into living room corners.",
+    image: "/products/solis-arched-floor-lamp.png",
+    price: 4799,
+    href: "/product/solis-arched-floor-lamp",
+    features: [
+      "Slim metal stem",
+      "Directed dome shade",
+      "Weighted base",
+      "Corner-friendly footprint",
+      "Reading light output",
+    ],
+    specs: [
+      { label: "Type", value: "Floor lamp" },
+      { label: "Finish", value: "Matte black" },
+      { label: "Height", value: "152 cm" },
+    ],
+  },
+  {
+    id: "niva-pleated-desk-lamp",
+    slug: "niva-pleated-desk-lamp",
+    name: "Niva Pleated Desk Lamp",
+    subtitle: "Olive metal · Compact desk lamp",
+    description: "Pleated shade desk lamp with a muted olive finish.",
+    longDescription:
+      "A compact task lamp with an olive powder-coated stem, pleated shade, and focused downward light for desks, console tables, and study corners.",
+    image: "/products/niva-pleated-desk-lamp.png",
+    price: 4199,
+    href: "/product/niva-pleated-desk-lamp",
+    features: [
+      "Pleated shade",
+      "Powder-coated metal",
+      "Compact desk size",
+      "Focused task lighting",
+      "Muted olive finish",
+    ],
+    specs: [
+      { label: "Type", value: "Desk lamp" },
+      { label: "Finish", value: "Olive" },
+      { label: "Height", value: "44 cm" },
+    ],
+  },
+  {
+    id: "aura-glass-orb-lamp",
+    slug: "aura-glass-orb-lamp",
+    name: "Aura Glass Orb Lamp",
+    subtitle: "Opal glass · Ambient table lamp",
+    description: "Opal globe lamp with a brushed brass plinth base.",
+    longDescription:
+      "A small ambient lamp with an opal glass orb, brushed brass plinth base, and soft all-around glow suited to entry consoles and sideboards.",
+    image: "/products/aura-glass-orb-lamp.png",
+    price: 2899,
+    href: "/product/aura-glass-orb-lamp",
+    features: [
+      "Opal glass globe",
+      "Brushed brass base",
+      "Soft ambient glow",
+      "Compact footprint",
+      "Console-ready styling",
+    ],
+    specs: [
+      { label: "Type", value: "Ambient lamp" },
+      { label: "Finish", value: "Opal glass" },
+      { label: "Height", value: "26 cm" },
     ],
   },
   {
@@ -142,7 +252,6 @@ export const products: Product[] = [
     image: "/products/cove-sectional-sofa.png",
     price: 139999,
     href: "/product/cove-sectional-sofa",
-    payInFourEligible: true,
     features: [
       "Right-facing chaise",
       "Curved sectional frame",
@@ -212,8 +321,19 @@ export function getProductBySlug(slug?: string) {
   return products.find((item) => item.slug === slug)
 }
 
-export function getPayInFourOfferDiscount(product: Product) {
-  if (!product.merchantOffer) {
+export function getProductById(id?: string) {
+  return products.find((item) => item.id === id)
+}
+
+export function isPay4Eligible(product: Pick<Product, "price">) {
+  return product.price >= PAY4_ELIGIBILITY_THRESHOLD
+}
+
+export function getPayInFourOfferDiscount(
+  product: Product,
+  merchantOfferEnabled = true
+) {
+  if (!isPay4Eligible(product) || !merchantOfferEnabled || !product.merchantOffer) {
     return 0
   }
 
@@ -224,20 +344,32 @@ export function getPayInFourOfferDiscount(product: Product) {
   return 0
 }
 
-export function getPayInFourOfferTotal(product: Product) {
-  return product.price - getPayInFourOfferDiscount(product)
+export function getPayInFourOfferTotal(
+  product: Product,
+  merchantOfferEnabled = true
+) {
+  return product.price - getPayInFourOfferDiscount(product, merchantOfferEnabled)
 }
 
-export function createCheckoutOrder(product: Product): CheckoutOrder {
-  const payInFourDiscountAmount = getPayInFourOfferDiscount(product)
+export function createCheckoutOrder(
+  product: Product,
+  merchantOfferEnabled = true
+): CheckoutOrder {
+  const pay4Eligible = isPay4Eligible(product)
+  const payInFourDiscountAmount = getPayInFourOfferDiscount(
+    product,
+    merchantOfferEnabled
+  )
   const payInFourTotal = product.price - payInFourDiscountAmount
 
   return {
     merchant: "Luma Home",
     itemName: product.name,
     itemDescription: product.subtitle,
+    pay4Eligible,
     mrp: product.price,
-    merchantOffer: product.merchantOffer,
+    merchantOffer:
+      pay4Eligible && merchantOfferEnabled ? product.merchantOffer : undefined,
     payInFourDiscountAmount,
     payInFourTotal,
     subtotal: product.price,
@@ -245,6 +377,71 @@ export function createCheckoutOrder(product: Product): CheckoutOrder {
     gst: 0,
     protection: 0,
     total: product.price,
+  }
+}
+
+export function createCheckoutOrderFromCart(
+  items: CartItem[],
+  merchantOfferEnabled = true
+): CheckoutOrder {
+  const subtotal = items.reduce(
+    (sum, item) => sum + item.product.price * item.quantity,
+    0
+  )
+  const pay4Eligible = subtotal >= PAY4_ELIGIBILITY_THRESHOLD
+  const payInFourDiscountAmount =
+    pay4Eligible && merchantOfferEnabled
+      ? items.reduce((sum, item) => {
+          if (!item.product.merchantOffer) {
+            return sum
+          }
+
+          if (item.product.merchantOffer.type === "percent") {
+            return (
+              sum +
+              Math.round(
+                ((item.product.price * item.product.merchantOffer.value) / 100) *
+                  item.quantity
+              )
+            )
+          }
+
+          return sum
+        }, 0)
+      : 0
+  const payInFourTotal = subtotal - payInFourDiscountAmount
+  const totalQuantity = items.reduce((sum, item) => sum + item.quantity, 0)
+  const singleOfferProducts = items.filter((item) => item.product.merchantOffer)
+  const merchantOffer =
+    pay4Eligible && merchantOfferEnabled && payInFourDiscountAmount > 0
+      ? {
+          type: "percent" as const,
+          value:
+            singleOfferProducts.length === 1
+              ? singleOfferProducts[0].product.merchantOffer?.value ?? 0
+              : 0,
+          label:
+            singleOfferProducts.length === 1
+              ? singleOfferProducts[0].product.merchantOffer?.label ??
+                "Merchant offer"
+              : "Merchant offer",
+        }
+      : undefined
+
+  return {
+    merchant: "Luma Home",
+    itemName: `${totalQuantity} item${totalQuantity === 1 ? "" : "s"}`,
+    itemDescription: `${items.length} product${items.length === 1 ? "" : "s"} in cart`,
+    pay4Eligible,
+    mrp: subtotal,
+    merchantOffer,
+    payInFourDiscountAmount,
+    payInFourTotal,
+    subtotal,
+    delivery: 0,
+    gst: 0,
+    protection: 0,
+    total: subtotal,
   }
 }
 
@@ -257,26 +454,46 @@ export function splitInstallments(total: number) {
   )
 }
 
+export function createPay4BreakdownDisplay(
+  order: Pick<CheckoutOrder, "total" | "payInFourTotal" | "payInFourDiscountAmount">
+): Pay4BreakdownDisplay {
+  const monthlyInstallments = splitInstallments(order.total)
+
+  return {
+    orderValue: order.total,
+    amountChargedToday: order.payInFourTotal,
+    pay4Benefit: order.payInFourDiscountAmount,
+    monthlyInstallment: monthlyInstallments[0],
+    totalRepayment: monthlyInstallments.reduce((sum, amount) => sum + amount, 0),
+  }
+}
+
 export function createPaymentMethods(
   order: CheckoutOrder
 ): PaymentMethodOption[] {
   const installmentAmount = splitInstallments(order.payInFourTotal)[0]
 
+  const pay4Method = order.pay4Eligible
+    ? [
+        {
+          id: "payment-pay-in-4",
+          value: "pay-in-4" as const,
+          title: "Pay4",
+          description: undefined,
+          detail: `Pay in 4 installments of ${formatCurrency(installmentAmount)}`,
+          badge: "Recommended",
+          offer:
+            order.payInFourDiscountAmount > 0 && order.merchantOffer
+              ? `${order.merchantOffer.value}% off`
+              : undefined,
+          icon: Landmark,
+          iconSrc: "/checkout-gateway/pay-in-4.svg",
+        },
+      ]
+    : []
+
   return [
-    {
-      id: "payment-pay-in-4",
-      value: "pay-in-4",
-      title: "Pay in 4",
-      description: "Split the purchase into four interest-free payments.",
-      detail: `${formatCurrency(installmentAmount)} today, then monthly`,
-      badge: "Recommended",
-      offer:
-        order.payInFourDiscountAmount > 0 && order.merchantOffer
-          ? `${order.merchantOffer.value}% off`
-          : undefined,
-      icon: Landmark,
-      iconSrc: "/checkout-gateway/pay-in-4.svg",
-    },
+    ...pay4Method,
     {
       id: "payment-upi",
       value: "upi",

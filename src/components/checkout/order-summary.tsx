@@ -27,7 +27,7 @@ export function OrderSummary({
   paymentMethod,
   product,
 }: OrderSummaryProps) {
-  const isPayInFour = paymentMethod === "pay-in-4"
+  const isPayInFour = order.pay4Eligible && paymentMethod === "pay-in-4"
   const discountAmount = isPayInFour ? order.payInFourDiscountAmount : 0
   const total = isPayInFour ? order.payInFourTotal : order.total
 

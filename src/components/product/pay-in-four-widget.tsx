@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { type ReactNode, useState } from "react"
 import Image from "next/image"
 import Link from "next/link"
 import { ChevronDown } from "lucide-react"
@@ -9,13 +9,6 @@ import { Button } from "@/components/ui/button"
 import { formatCurrency, splitInstallments } from "@/data/checkout"
 import { cn } from "@/lib/utils"
 
-const installmentSteps = [
-  { label: "Today", progress: 25 },
-  { label: "In 30 days", progress: 50 },
-  { label: "In 60 days", progress: 75 },
-  { label: "In 90 days", progress: 100 },
-]
-
 type PayInFourWidgetProps = {
   total: number
   originalTotal?: number
@@ -23,6 +16,8 @@ type PayInFourWidgetProps = {
   embedded?: boolean
   offerPercent?: number
   directCheckoutHref?: string
+  onDirectCheckout?: () => void
+  supportingContent?: ReactNode
 }
 
 export function PayInFourWidget({
@@ -32,12 +27,13 @@ export function PayInFourWidget({
   embedded = false,
   offerPercent,
   directCheckoutHref,
+  onDirectCheckout,
+  supportingContent,
 }: PayInFourWidgetProps) {
   const [expanded, setExpanded] = useState(defaultExpanded)
-  const installmentAmounts = splitInstallments(total)
   const hasDiscountedTotal = Boolean(originalTotal && originalTotal > total)
-  const dueNow = formatCurrency(installmentAmounts[0])
-  const recurringAmount = formatCurrency(installmentAmounts[1])
+  const installmentAmountValue = splitInstallments(total)[0]
+  const installmentAmount = formatCurrency(installmentAmountValue)
 
   return (
     <div
@@ -48,8 +44,8 @@ export function PayInFourWidget({
     >
       <div className="flex w-full items-center justify-between gap-3 p-2">
         <div className="flex min-w-0 flex-wrap items-center gap-2">
-          <p className="shrink-0 text-sm font-bold italic leading-[18px] text-[var(--pay-in-four-panel-foreground)]">
-            Pay in 4
+          <p className="shrink-0 text-sm font-bold italic leading-[18px] tracking-[0.01em] text-[var(--pay-in-four-panel-foreground)]">
+            Pay4
           </p>
           {offerPercent ? (
             <span className="shrink-0 rounded-full bg-white/20 px-2 py-0.5 text-[10px] font-semibold leading-4 text-white">
@@ -106,13 +102,13 @@ export function PayInFourWidget({
                 />
               </div>
               <p className="text-sm font-medium leading-5 text-[rgba(28,28,28,0.8)]">
-                Pay {dueNow} now & then {recurringAmount}/m thrice
+                Pay in 4 monthly installments of {installmentAmount}
               </p>
             </>
           ) : (
             <div className="flex w-full items-center justify-between gap-3">
               <p className="min-w-0 text-sm font-medium leading-5 text-[rgba(28,28,28,0.8)]">
-                Pay {dueNow} now & then {recurringAmount}/m thrice
+                Pay in 4 monthly installments of {installmentAmount}
               </p>
               <ChevronDown
                 className={cn(
@@ -125,56 +121,47 @@ export function PayInFourWidget({
           )}
         </button>
 
+        {supportingContent ? (
+          <div className="mt-3">{supportingContent}</div>
+        ) : null}
+
         {expanded ? (
-          <div className="mt-2 flex w-full flex-col">
-            {installmentSteps.map((step, index) => (
-              <div
-                key={step.label}
-                className={cn(
-                  "flex w-full items-center justify-between gap-3 py-2",
-                  index < installmentSteps.length - 1 &&
-                    "border-b border-[rgba(28,28,28,0.05)] pb-[9px]"
-                )}
-              >
-                <div className="flex min-w-0 items-center gap-[7px]">
-                  <InstallmentProgress value={step.progress} />
-                  <p className="truncate text-xs font-medium leading-5 text-[rgba(28,28,28,0.5)]">
-                    {step.label}
-                  </p>
-                </div>
-                <p className="shrink-0 text-sm font-semibold leading-5 text-[#1c1c1c] tabular-nums">
-                  {formatCurrency(installmentAmounts[index])}
-                </p>
-              </div>
-            ))}
+          <div className="mt-3 flex w-full flex-col gap-3 border-t border-[rgba(28,28,28,0.05)] pt-3 text-[13px] leading-5 text-[rgba(28,28,28,0.68)]">
+            <p>
+              Pay4 splits your purchase into four equal monthly payments of{" "}
+              <span className="font-semibold text-[#1c1c1c]">
+                {installmentAmount}
+              </span>{" "}
+              on your eligible credit card. Your eligibility is checked during
+              checkout.
+            </p>
           </div>
         ) : null}
 
-        {directCheckoutHref ? (
+        {directCheckoutHref || onDirectCheckout ? (
           <div className="mt-3 flex justify-center border-t border-[color:var(--pay-in-four-surface-border)] pt-2">
-            <Button
-              render={<Link href={directCheckoutHref} />}
-              nativeButton={false}
-              size="sm"
-              className="h-8 w-fit rounded-[10px] bg-transparent px-0 text-sm font-semibold text-[var(--pay-in-four-action)] shadow-none hover:bg-transparent hover:text-[var(--pay-in-four-action)]"
-            >
-              Buy now with Pay in 4
-            </Button>
+            {directCheckoutHref ? (
+              <Button
+                render={<Link href={directCheckoutHref} />}
+                nativeButton={false}
+                size="sm"
+                className="h-8 w-fit rounded-[10px] bg-transparent px-0 text-sm font-semibold text-[var(--pay-in-four-action)] shadow-none hover:bg-transparent hover:text-[var(--pay-in-four-action)]"
+              >
+                Buy now with Pay4
+              </Button>
+            ) : (
+              <Button
+                type="button"
+                size="sm"
+                className="h-8 w-fit rounded-[10px] bg-transparent px-0 text-sm font-semibold text-[var(--pay-in-four-action)] shadow-none hover:bg-transparent hover:text-[var(--pay-in-four-action)]"
+                onClick={onDirectCheckout}
+              >
+                Buy now with Pay4
+              </Button>
+            )}
           </div>
         ) : null}
       </div>
     </div>
-  )
-}
-
-function InstallmentProgress({ value }: { value: number }) {
-  return (
-    <span
-      className="size-[18px] shrink-0 rounded-full"
-      style={{
-        background: `conic-gradient(var(--pay-in-four-progress) ${value}%, var(--pay-in-four-progress-track) 0)`,
-      }}
-      aria-hidden="true"
-    />
   )
 }

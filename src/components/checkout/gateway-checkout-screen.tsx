@@ -1,3 +1,5 @@
+"use client"
+
 import Image from "next/image"
 import Link from "next/link"
 import {
@@ -14,6 +16,7 @@ import {
   formatCurrency,
   type Product,
 } from "@/data/checkout"
+import { usePayInFourTheme } from "@/components/pay-in-four-theme"
 
 type GatewayCheckoutScreenProps = {
   product: Product
@@ -40,7 +43,8 @@ const gatewayAssets = {
 }
 
 export function GatewayCheckoutScreen({ product }: GatewayCheckoutScreenProps) {
-  const order = createCheckoutOrder(product)
+  const { merchantOfferEnabled } = usePayInFourTheme()
+  const order = createCheckoutOrder(product, merchantOfferEnabled)
   const installmentAmount = order.payInFourTotal / 4
   const monthlyEmi = Math.ceil(order.total / 12)
   const paymentRows: PaymentRow[] = [
@@ -84,20 +88,22 @@ export function GatewayCheckoutScreen({ product }: GatewayCheckoutScreenProps) {
         />
 
         <section className="flex flex-col gap-7 px-6 py-6">
-          <PaymentSection title="Pay 4">
-            <GatewayPaymentRow
-              title="Pay in 4"
-              description={`${formatCurrency(installmentAmount)} today, then monthly`}
-              icon={gatewayAssets.payIn4}
-              offer={
-                order.merchantOffer
-                  ? `${order.merchantOffer.value}% off`
-                  : undefined
-              }
-              href={`/checkout/classic?product=${product.slug}`}
-              standalone
-            />
-          </PaymentSection>
+          {order.pay4Eligible ? (
+            <PaymentSection title="Pay 4">
+              <GatewayPaymentRow
+                title="Pay4"
+                description={`${formatCurrency(installmentAmount)} today, then monthly`}
+                icon={gatewayAssets.payIn4}
+                offer={
+                  order.merchantOffer
+                    ? `${order.merchantOffer.value}% off`
+                    : undefined
+                }
+                href={`/checkout/classic?product=${product.slug}`}
+                standalone
+              />
+            </PaymentSection>
+          ) : null}
 
           <PaymentSection title="More Payment Options">
             <div className="overflow-hidden rounded-[12px] border border-[rgba(28,28,28,0.08)] bg-white shadow-[0_2px_8px_rgba(0,0,0,0.08)]">

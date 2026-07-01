@@ -18,7 +18,7 @@ export function InstallmentSchedule({ total }: InstallmentScheduleProps) {
   return (
     <div className="flex flex-col gap-4 rounded-[var(--radius)] border bg-muted p-3">
       <Progress value={75}>
-        <ProgressLabel>Pay in 4 schedule</ProgressLabel>
+        <ProgressLabel>Pay4 schedule</ProgressLabel>
         <ProgressValue>{() => "4 payments"}</ProgressValue>
       </Progress>
 

@@ -1,3 +1,4 @@
+import { type ReactNode } from "react"
 import Image from "next/image"
 import { type LucideIcon } from "lucide-react"
 
@@ -15,8 +16,9 @@ type PaymentMethodCardProps = {
   id: string
   value: string
   title: string
-  description: string
+  description?: string
   detail: string
+  meta?: ReactNode
   badge?: string
   offer?: string
   icon: LucideIcon
@@ -30,6 +32,7 @@ export function PaymentMethodCard({
   title,
   description,
   detail,
+  meta,
   badge,
   offer,
   icon: Icon,
@@ -84,12 +87,15 @@ export function PaymentMethodCard({
               </span>
             ) : null}
           </div>
-          <FieldDescription className="text-xs leading-5">
-            {description}
-          </FieldDescription>
+          {description ? (
+            <FieldDescription className="text-xs leading-5">
+              {description}
+            </FieldDescription>
+          ) : null}
           <p className="text-xs font-medium leading-5 text-muted-foreground">
             {detail}
           </p>
+          {meta ? <div className="pt-1">{meta}</div> : null}
         </FieldContent>
         <RadioGroupItem id={id} value={value} className="mt-1" />
       </Field>

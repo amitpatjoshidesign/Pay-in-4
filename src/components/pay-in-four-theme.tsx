@@ -13,6 +13,7 @@ import { createPortal } from "react-dom"
 import { Palette, X } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
+import { Checkbox } from "@/components/ui/checkbox"
 import { cn } from "@/lib/utils"
 
 type ThemeStyle = CSSProperties & Record<`--${string}`, string>
@@ -129,6 +130,7 @@ export const payInFourThemes: PayInFourTheme[] = [
 
 const defaultThemeId: PayInFourThemeId = "pine"
 const defaultCardJourney: PayInFourCardJourney = "new-card"
+const defaultMerchantOfferEnabled = false
 
 const cardJourneyOptions: Array<{
   id: PayInFourCardJourney
@@ -185,6 +187,8 @@ type PayInFourThemeContextValue = {
   setThemeId: (themeId: PayInFourThemeId) => void
   cardJourney: PayInFourCardJourney
   setCardJourney: (cardJourney: PayInFourCardJourney) => void
+  merchantOfferEnabled: boolean
+  setMerchantOfferEnabled: (enabled: boolean) => void
 }
 
 const PayInFourThemeContext =
@@ -199,6 +203,8 @@ export function PayInFourThemeProvider({
     useState<PayInFourThemeId>(defaultThemeId)
   const [cardJourney, setCardJourneyState] =
     useState<PayInFourCardJourney>(defaultCardJourney)
+  const [merchantOfferEnabled, setMerchantOfferEnabledState] =
+    useState(defaultMerchantOfferEnabled)
 
   const value = useMemo<PayInFourThemeContextValue>(
     () => ({
@@ -206,8 +212,10 @@ export function PayInFourThemeProvider({
       setThemeId: setThemeIdState,
       cardJourney,
       setCardJourney: setCardJourneyState,
+      merchantOfferEnabled,
+      setMerchantOfferEnabled: setMerchantOfferEnabledState,
     }),
-    [cardJourney, themeId]
+    [cardJourney, merchantOfferEnabled, themeId]
   )
 
   const themeStyle = useMemo(() => getThemeStyle(getTheme(themeId)), [themeId])
@@ -238,13 +246,22 @@ export function usePayInFourTheme() {
 }
 
 export function PayInFourThemePopover({ className }: { className?: string }) {
-  const { themeId, setThemeId, cardJourney, setCardJourney } =
+  const {
+    themeId,
+    setThemeId,
+    cardJourney,
+    setCardJourney,
+    merchantOfferEnabled,
+    setMerchantOfferEnabled,
+  } =
     usePayInFourTheme()
   const [open, setOpen] = useState(false)
   const [draftThemeId, setDraftThemeId] =
     useState<PayInFourThemeId>(themeId)
   const [draftCardJourney, setDraftCardJourney] =
     useState<PayInFourCardJourney>(cardJourney)
+  const [draftMerchantOfferEnabled, setDraftMerchantOfferEnabled] =
+    useState(merchantOfferEnabled)
   const selectedTheme = getTheme(themeId)
   const draftTheme = getTheme(draftThemeId)
   const draftThemeStyle = getThemeStyle(draftTheme)
@@ -273,7 +290,7 @@ export function PayInFourThemePopover({ className }: { className?: string }) {
             <button
               type="button"
               className="fixed inset-0 z-[90] cursor-default bg-black/25 backdrop-blur-[1px]"
-              aria-label="Close Pay in 4 - Theme"
+              aria-label="Close Pay4 - Theme"
               onClick={() => setOpen(false)}
             />
             <div
@@ -291,7 +308,7 @@ export function PayInFourThemePopover({ className }: { className?: string }) {
                     id="pay-in-four-theme-title"
                     className="text-base font-semibold leading-6"
                   >
-                    Pay in 4 - Theme
+                    Pay4 - Theme
                   </h2>
                   <p className="text-sm text-muted-foreground">
                     Choose a color and card journey, then implement them.
@@ -302,7 +319,7 @@ export function PayInFourThemePopover({ className }: { className?: string }) {
                   variant="ghost"
                   size="icon"
                   className="shrink-0 rounded-full text-muted-foreground hover:bg-muted hover:text-foreground"
-                  aria-label="Close Pay in 4 - Theme"
+                  aria-label="Close Pay4 - Theme"
                   onClick={() => setOpen(false)}
                 >
                   <X aria-hidden="true" />
@@ -313,7 +330,7 @@ export function PayInFourThemePopover({ className }: { className?: string }) {
                 <div
                   className="grid gap-3"
                   role="list"
-                  aria-label="Pay in 4 - Theme colors"
+                  aria-label="Pay4 - Theme colors"
                 >
                   {payInFourThemes.map((theme) => {
                     const selected = theme.id === draftThemeId
@@ -403,13 +420,43 @@ export function PayInFourThemePopover({ className }: { className?: string }) {
                   </div>
                 </div>
 
+                <div className="flex flex-col gap-3">
+                  <div>
+                    <h3 className="text-sm font-semibold leading-5">
+                      Offer
+                    </h3>
+                    <p className="text-xs leading-5 text-muted-foreground">
+                      Toggle the extra merchant coupon applied to Pay4.
+                    </p>
+                  </div>
+                  <label className="flex cursor-pointer items-start gap-3 rounded-[var(--radius)] border p-3">
+                    <Checkbox
+                      checked={draftMerchantOfferEnabled}
+                      onCheckedChange={(checked) =>
+                        setDraftMerchantOfferEnabled(Boolean(checked))
+                      }
+                      aria-label="Enable merchant offer"
+                      className="mt-0.5"
+                    />
+                    <div className="min-w-0">
+                      <p className="text-sm font-semibold">
+                        Enable 10% merchant coupon
+                      </p>
+                      <p className="text-xs leading-5 text-muted-foreground">
+                        Off by default for this demo, but still available from
+                        this header configuration.
+                      </p>
+                    </div>
+                  </label>
+                </div>
+
                 <div
                   className="rounded-[var(--radius)] bg-[var(--pay-in-four-panel)] p-1"
                   style={draftThemeStyle}
                 >
                   <div className="flex items-center justify-between gap-3 p-2">
                     <p className="text-sm font-bold italic leading-[18px] text-[var(--pay-in-four-panel-foreground)]">
-                      Pay in 4
+                      Pay4
                     </p>
                   </div>
                   <div className="rounded-[calc(var(--radius)*0.9)] bg-[var(--pay-in-four-surface)] p-3 text-sm font-medium">
@@ -430,6 +477,7 @@ export function PayInFourThemePopover({ className }: { className?: string }) {
                   onClick={() => {
                     setThemeId(draftThemeId)
                     setCardJourney(draftCardJourney)
+                    setMerchantOfferEnabled(draftMerchantOfferEnabled)
                     setOpen(false)
                   }}
                 >
@@ -449,12 +497,13 @@ export function PayInFourThemePopover({ className }: { className?: string }) {
         variant="outline"
         size="icon"
         className="relative shrink-0"
-        aria-label="Pay in 4 - Theme"
+        aria-label="Pay4 - Theme"
         aria-haspopup="dialog"
         aria-expanded={open}
         onClick={() => {
           setDraftThemeId(themeId)
           setDraftCardJourney(cardJourney)
+          setDraftMerchantOfferEnabled(merchantOfferEnabled)
           setOpen(true)
         }}
       >

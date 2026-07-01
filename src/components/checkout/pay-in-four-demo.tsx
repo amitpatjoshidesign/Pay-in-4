@@ -2,6 +2,7 @@
 
 import {
   type CSSProperties,
+  useEffect,
   type FormEvent,
   type ReactNode,
   useMemo,
@@ -9,6 +10,7 @@ import {
 } from "react"
 import Image from "next/image"
 import Link from "next/link"
+import { useRouter } from "next/navigation"
 import {
   ArrowLeft,
   Check,
@@ -18,12 +20,13 @@ import {
   X,
 } from "lucide-react"
 
+import { useCart } from "@/components/cart/cart-context"
 import { PaymentMethodCard } from "@/components/checkout/payment-method-card"
 import {
   PayInFourThemePopover,
   usePayInFourTheme,
 } from "@/components/pay-in-four-theme"
-import { PayInFourWidget } from "@/components/product/pay-in-four-widget"
+import { Pay4EligibilityProgress } from "@/components/product/pay4-eligibility-progress"
 import { Button, buttonVariants } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { Checkbox } from "@/components/ui/checkbox"
@@ -32,19 +35,14 @@ import { Input } from "@/components/ui/input"
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import { Separator } from "@/components/ui/separator"
 import {
-  createCheckoutOrder,
+  createPay4BreakdownDisplay,
+  createCheckoutOrderFromCart,
   createPaymentMethods,
   formatCurrency,
   splitInstallments,
-  type Product,
   type PaymentMethod,
 } from "@/data/checkout"
 import { cn } from "@/lib/utils"
-
-type PayInFourDemoProps = {
-  product: Product
-  directPayInFour?: boolean
-}
 
 type CheckoutStep = "address" | "pay"
 type PaymentStage = "methods" | "card" | "success"
@@ -150,34 +148,6 @@ const successConfettiPieces = [
   { x: "106px", y: "188px", rotate: "-156deg", color: "#f97316", delay: "198ms" },
 ]
 
-function addMonths(date: Date, months: number) {
-  const nextDate = new Date(date)
-  nextDate.setMonth(nextDate.getMonth() + months)
-
-  return nextDate
-}
-
-function formatPaymentDate(date: Date) {
-  return new Intl.DateTimeFormat("en-IN", {
-    day: "numeric",
-    month: "short",
-    year: "numeric",
-  }).format(date)
-}
-
-function createPaymentSchedule(paymentDate: Date, amounts: number[]) {
-  return amounts.map((amount, monthOffset) => ({
-    label: `Payment ${monthOffset + 1}`,
-    date:
-      monthOffset === 0
-        ? "Paid today"
-        : formatPaymentDate(addMonths(paymentDate, monthOffset)),
-    amount,
-    progress: (monthOffset + 1) * 25,
-    status: monthOffset === 0 ? "Done" : "Upcoming",
-  }))
-}
-
 const getStepIndex = (step: CheckoutStep) =>
   checkoutSteps.findIndex((item) => item.id === step)
 
@@ -194,6 +164,8 @@ function CheckoutOrderHeader({
   discountAmount,
   merchantOfferLabel,
   mrp,
+  pay4Eligible,
+  pay4Breakdown,
   subtotal,
   productHref,
 }: {
@@ -201,6 +173,8 @@ function CheckoutOrderHeader({
   discountAmount: number
   merchantOfferLabel?: string
   mrp: number
+  pay4Eligible: boolean
+  pay4Breakdown?: ReturnType<typeof createPay4BreakdownDisplay>
   subtotal: number
   productHref: string
 }) {
@@ -253,27 +227,38 @@ function CheckoutOrderHeader({
 
         {expanded ? (
           <div className="mt-4 grid gap-2 border-t border-primary-foreground/15 pt-4 text-sm">
-            {discountAmount > 0 ? (
+            {pay4Eligible && pay4Breakdown ? (
+              <CheckoutPay4Breakdown breakdown={pay4Breakdown} />
+            ) : discountAmount > 0 ? (
               <>
                 <HeaderBreakdownRow label="MRP" value={formatCurrency(mrp)} />
                 <HeaderBreakdownRow
                   label={merchantOfferLabel ?? "Merchant offer"}
                   value={`-${formatCurrency(discountAmount)}`}
                 />
+                <HeaderBreakdownRow label="Delivery" value="Included" />
+                <HeaderBreakdownRow label="GST" value="Included" />
+                <HeaderBreakdownRow
+                  label="Total"
+                  value={formatCurrency(amount)}
+                  strong
+                />
               </>
             ) : (
-              <HeaderBreakdownRow
-                label="Subtotal"
-                value={formatCurrency(subtotal)}
-              />
+              <>
+                <HeaderBreakdownRow
+                  label="Subtotal"
+                  value={formatCurrency(subtotal)}
+                />
+                <HeaderBreakdownRow label="Delivery" value="Included" />
+                <HeaderBreakdownRow label="GST" value="Included" />
+                <HeaderBreakdownRow
+                  label="Total"
+                  value={formatCurrency(amount)}
+                  strong
+                />
+              </>
             )}
-            <HeaderBreakdownRow label="Delivery" value="Included" />
-            <HeaderBreakdownRow label="GST" value="Included" />
-            <HeaderBreakdownRow
-              label="Total"
-              value={formatCurrency(amount)}
-              strong
-            />
           </div>
         ) : null}
       </div>
@@ -302,6 +287,47 @@ function HeaderBreakdownRow({
         {value}
       </span>
     </div>
+  )
+}
+
+function CheckoutPay4Breakdown({
+  breakdown,
+}: {
+  breakdown: ReturnType<typeof createPay4BreakdownDisplay>
+}) {
+  return (
+    <>
+      <p className="text-sm font-semibold uppercase tracking-[0.08em] text-primary-foreground">
+        Pay4 Breakdown
+      </p>
+      <HeaderBreakdownRow
+        label="Order Value"
+        value={formatCurrency(breakdown.orderValue)}
+      />
+      <HeaderBreakdownRow
+        label="Amount charged to your card today"
+        value={formatCurrency(breakdown.amountChargedToday)}
+      />
+      <HeaderBreakdownRow
+        label="Pay4 benefit (upfront adjustment)"
+        value={`-${formatCurrency(breakdown.pay4Benefit)}`}
+      />
+
+      <div className="my-2 h-px bg-primary-foreground/15" />
+
+      <p className="text-sm font-semibold text-primary-foreground">
+        Your EMI Plan
+      </p>
+      <HeaderBreakdownRow
+        label="4 monthly instalments"
+        value={formatCurrency(breakdown.monthlyInstallment)}
+      />
+      <HeaderBreakdownRow
+        label="Total you'll repay"
+        value={formatCurrency(breakdown.totalRepayment)}
+        strong
+      />
+    </>
   )
 }
 
@@ -463,16 +489,19 @@ function CheckoutStepFooter({ children }: { children: ReactNode }) {
   )
 }
 
-function SupportedBanksList() {
+function SupportedBanksList({ compact = false }: { compact?: boolean }) {
   return (
     <div className="flex flex-col gap-2">
-      <p className="text-sm font-medium">Supported banks</p>
+      {!compact ? (
+        <p className="text-sm font-medium">Supported banks</p>
+      ) : null}
       <div className="flex items-center">
         {supportedBanks.map((bank, index) => (
           <div
             key={bank.name}
             className={cn(
-              "flex size-9 min-w-0 items-center justify-center rounded-full border border-white bg-muted p-2",
+              "flex min-w-0 items-center justify-center rounded-full border border-white bg-muted",
+              compact ? "size-8 p-1.5" : "size-9 p-2",
               index > 0 && "-ml-1"
             )}
           >
@@ -481,7 +510,10 @@ function SupportedBanksList() {
               alt={bank.name}
               width={48}
               height={20}
-              className="max-h-4 max-w-7 object-contain"
+              className={cn(
+                "object-contain",
+                compact ? "max-h-3.5 max-w-6" : "max-h-4 max-w-7"
+              )}
             />
           </div>
         ))}
@@ -578,7 +610,7 @@ function SavedCardFields({
         value={selectedCardId}
         onValueChange={onSelectedCardChange}
         className="gap-3"
-        aria-label="Saved Pay in 4 cards"
+        aria-label="Saved Pay4 cards"
       >
         {savedPayInFourCards.map((card) => (
           <label
@@ -650,7 +682,7 @@ function CardDetailStep({
         <div className="flex flex-col items-start gap-3 text-left">
           <Image
             src="/checkout-gateway/pay-in-4.svg"
-            alt="Pay in 4"
+            alt="Pay4"
             width={32}
             height={32}
             className="size-8"
@@ -658,8 +690,8 @@ function CardDetailStep({
           <div className="flex flex-col gap-1">
             <h2 className="text-base font-semibold leading-6 text-foreground">
               {isSavedCardJourney
-                ? "Pay in 4 with your saved card"
-                : "Add a new credit card for Pay in 4 payment"}
+                ? "Pay4 with your saved card"
+                : "Add a new credit card for Pay4 payment"}
             </h2>
             {isSavedCardJourney ? (
               <p className="max-w-sm text-sm leading-6 text-muted-foreground">
@@ -775,52 +807,7 @@ function SuccessConfetti() {
   )
 }
 
-function SuccessInstallmentProgress({
-  value,
-  paid = false,
-}: {
-  value: number
-  paid?: boolean
-}) {
-  if (paid) {
-    return (
-      <span className="mt-px flex size-[18px] shrink-0 items-center justify-center rounded-full bg-[var(--pay-in-four-progress)] text-white">
-        <Check className="size-3" strokeWidth={3} aria-hidden="true" />
-      </span>
-    )
-  }
-
-  return (
-    <span
-      className="mt-px size-[18px] shrink-0 rounded-full"
-      style={{
-        background: `conic-gradient(var(--pay-in-four-progress) ${value}%, var(--pay-in-four-progress-track) 0)`,
-      }}
-      aria-hidden="true"
-    />
-  )
-}
-
-function PaymentSuccessStep({
-  installmentAmounts,
-  offerPercent,
-  paymentDate,
-  savedCard,
-}: {
-  installmentAmounts: number[]
-  offerPercent?: number
-  paymentDate: Date
-  savedCard: SavedPayInFourCard
-}) {
-  const dueToday = installmentAmounts[0]
-  const paymentSchedule = createPaymentSchedule(paymentDate, installmentAmounts)
-  const donePayments = paymentSchedule.filter(
-    (payment) => payment.status === "Done"
-  )
-  const upcomingPayments = paymentSchedule.filter(
-    (payment) => payment.status === "Upcoming"
-  )
-
+function PaymentSuccessStep() {
   return (
     <>
       <section className="relative isolate flex min-h-[420px] flex-col items-center justify-center gap-5 overflow-visible text-center">
@@ -833,124 +820,6 @@ function PaymentSuccessStep({
             Payment successful
           </h2>
         </div>
-        <Card className="relative z-10 w-full max-w-sm rounded-[var(--radius)] border-border ring-0 shadow-[var(--checkout-shadow)]">
-          <CardContent className="grid gap-3 text-sm">
-            <div className="flex items-center justify-between gap-3">
-              <span className="text-muted-foreground">Paid today</span>
-              <span className="font-semibold">{formatCurrency(dueToday)}</span>
-            </div>
-            <div className="flex items-center justify-between gap-3">
-              <span className="text-muted-foreground">Payment method</span>
-              <span className="flex items-center gap-2 font-mono font-semibold tracking-[0.04em]">
-                <span className="flex size-7 items-center justify-center rounded-full bg-muted/40">
-                  <Image
-                    src={savedCard.bankLogo}
-                    alt={savedCard.bank}
-                    width={36}
-                    height={15}
-                    className="max-h-4 max-w-6 object-contain"
-                  />
-                </span>
-                <span>XXXX {savedCard.last4}</span>
-              </span>
-            </div>
-            <div className="flex items-center justify-between gap-3">
-              <span className="text-muted-foreground">Status</span>
-              <span className="font-semibold text-primary">Confirmed</span>
-            </div>
-          </CardContent>
-        </Card>
-
-        <section className="relative z-10 flex w-full max-w-sm flex-col gap-1 rounded-[15px] bg-[var(--pay-in-four-panel)] p-1 text-left">
-          <div className="flex w-full items-center justify-between gap-3 p-2">
-            <div className="flex min-w-0 flex-wrap items-center gap-2">
-              <p className="shrink-0 text-sm font-bold italic leading-[18px] text-[var(--pay-in-four-panel-foreground)]">
-                Pay in 4
-              </p>
-              {offerPercent ? (
-                <span className="shrink-0 rounded-full bg-white/20 px-2 py-0.5 text-[10px] font-semibold leading-4 text-white">
-                  {offerPercent}% off
-                </span>
-              ) : null}
-            </div>
-            <div className="flex shrink-0 items-center gap-1.5">
-              <p className="text-xs font-normal leading-[18px] text-[var(--pay-in-four-panel-foreground)] opacity-50">
-                powered by
-              </p>
-              <Image
-                src="/checkout-gateway/pinelabs-logo.svg"
-                alt="Pine Labs"
-                width={46}
-                height={12}
-                className="h-[11.7px] w-[46px] shrink-0"
-              />
-            </div>
-          </div>
-
-          <div className="w-full rounded-xl bg-[var(--pay-in-four-surface)] px-3 pb-3 pt-3">
-            <h3 className="text-sm font-semibold leading-5 text-[#1c1c1c]">
-              Pay in 4 schedule
-            </h3>
-            <div className="mt-3 flex w-full flex-col">
-              {donePayments.map((payment) => (
-                <div
-                  key={payment.label}
-                  className="flex w-full items-start justify-between gap-3 py-2"
-                >
-                  <div className="flex min-w-0 items-start gap-[7px]">
-                    <SuccessInstallmentProgress
-                      value={payment.progress}
-                      paid
-                    />
-                    <div className="min-w-0">
-                      <p className="truncate text-xs font-medium leading-5 text-[#1c1c1c]">
-                        {payment.label}
-                      </p>
-                      <p className="truncate text-xs font-medium leading-5 text-[rgba(28,28,28,0.5)]">
-                        {payment.date}
-                      </p>
-                    </div>
-                  </div>
-                  <p className="shrink-0 text-sm font-semibold leading-5 text-[#1c1c1c] tabular-nums">
-                    {formatCurrency(payment.amount)}
-                  </p>
-                </div>
-              ))}
-
-              <div className="flex items-center gap-2 py-2">
-                <p className="text-[10px] font-semibold uppercase tracking-[0.08em] text-[rgba(28,28,28,0.42)]">
-                  Upcoming
-                </p>
-                <span className="h-px flex-1 bg-[rgba(28,28,28,0.05)]" />
-              </div>
-              {upcomingPayments.map((payment, index) => (
-                <div
-                  key={payment.label}
-                  className={cn(
-                    "flex w-full items-start justify-between gap-3 py-2",
-                    index < upcomingPayments.length - 1 &&
-                      "border-b border-[rgba(28,28,28,0.05)] pb-[9px]"
-                  )}
-                >
-                  <div className="flex min-w-0 items-start gap-[7px]">
-                    <SuccessInstallmentProgress value={payment.progress} />
-                    <div className="min-w-0">
-                      <p className="truncate text-xs font-medium leading-5 text-[#1c1c1c]">
-                        {payment.label}
-                      </p>
-                      <p className="truncate text-xs font-medium leading-5 text-[rgba(28,28,28,0.5)]">
-                        {payment.date}
-                      </p>
-                    </div>
-                  </div>
-                  <p className="shrink-0 text-sm font-semibold leading-5 text-[#1c1c1c] tabular-nums">
-                    {formatCurrency(payment.amount)}
-                  </p>
-                </div>
-              ))}
-            </div>
-          </div>
-        </section>
       </section>
 
       <CheckoutStepFooter>
@@ -972,20 +841,28 @@ function PaymentSuccessStep({
 }
 
 export function PayInFourDemo({
-  product,
-  directPayInFour = false,
-}: PayInFourDemoProps) {
+  directPay4Entry = false,
+}: {
+  directPay4Entry?: boolean
+}) {
+  const router = useRouter()
+  const { hydrated, items, subtotal } = useCart()
+  const { merchantOfferEnabled } = usePayInFourTheme()
   const [checkoutStep, setCheckoutStep] = useState<CheckoutStep>("address")
   const [highestStepIndex, setHighestStepIndex] = useState(0)
   const [selectedAddressId, setSelectedAddressId] = useState("product-office")
   const [paymentMethod, setPaymentMethod] =
     useState<PaymentMethod>("pay-in-4")
   const [paymentStage, setPaymentStage] = useState<PaymentStage>("methods")
+  const [hasHandledDirectPay4Entry, setHasHandledDirectPay4Entry] =
+    useState(false)
   const [selectedSavedCardId, setSelectedSavedCardId] = useState(
     defaultSavedPayInFourCard.id
   )
-  const [successDate, setSuccessDate] = useState<Date | null>(null)
-  const order = useMemo(() => createCheckoutOrder(product), [product])
+  const order = useMemo(
+    () => createCheckoutOrderFromCart(items, merchantOfferEnabled),
+    [items, merchantOfferEnabled]
+  )
   const paymentMethods = useMemo(() => createPaymentMethods(order), [order])
   const recommendedPaymentMethods = useMemo(
     () => paymentMethods.filter((method) => method.value === "pay-in-4"),
@@ -995,12 +872,11 @@ export function PayInFourDemo({
     () => paymentMethods.filter((method) => method.value !== "pay-in-4"),
     [paymentMethods]
   )
-  const selectedSavedCard =
-    savedPayInFourCards.find((card) => card.id === selectedSavedCardId) ??
-    defaultSavedPayInFourCard
   const isPaymentSuccess = checkoutStep === "pay" && paymentStage === "success"
   const isPayInFourOfferActive =
-    paymentMethod === "pay-in-4" && (directPayInFour || checkoutStep === "pay")
+    order.pay4Eligible &&
+    paymentMethod === "pay-in-4" &&
+    checkoutStep === "pay"
   const payInFourInstallments = useMemo(
     () => splitInstallments(order.payInFourTotal),
     [order.payInFourTotal]
@@ -1011,6 +887,10 @@ export function PayInFourDemo({
   const checkoutDiscountAmount = isPayInFourOfferActive
     ? order.payInFourDiscountAmount
     : 0
+  const pay4Breakdown = useMemo(
+    () => (order.pay4Eligible ? createPay4BreakdownDisplay(order) : undefined),
+    [order]
+  )
 
   const dueToday =
     paymentMethod === "pay-in-4"
@@ -1021,7 +901,7 @@ export function PayInFourDemo({
 
   const submitLabel =
     paymentMethod === "pay-in-4"
-      ? "Continue with Pay in 4"
+      ? "Continue with Pay4"
       : paymentMethod === "upi"
         ? "Pay with UPI"
         : paymentMethod === "emi"
@@ -1032,31 +912,62 @@ export function PayInFourDemo({
               ? "Pay with Wallet"
               : "Pay Netbanking"
 
+  useEffect(() => {
+    if (hydrated && items.length === 0) {
+      router.replace("/cart")
+    }
+  }, [hydrated, items.length, router])
+
+  useEffect(() => {
+    if (!order.pay4Eligible && paymentMethod === "pay-in-4") {
+      setPaymentMethod("upi")
+    }
+  }, [order.pay4Eligible, paymentMethod])
+
+  useEffect(() => {
+    if (
+      !hydrated ||
+      hasHandledDirectPay4Entry ||
+      !directPay4Entry ||
+      items.length === 0 ||
+      !order.pay4Eligible
+    ) {
+      return
+    }
+
+    setCheckoutStep("pay")
+    setHighestStepIndex(1)
+    setPaymentMethod("pay-in-4")
+    setPaymentStage("card")
+    setHasHandledDirectPay4Entry(true)
+  }, [
+    directPay4Entry,
+    hasHandledDirectPay4Entry,
+    hydrated,
+    items.length,
+    order.pay4Eligible,
+  ])
+
+  if (!hydrated || items.length === 0) {
+    return null
+  }
+
   function handleStepSelect(step: CheckoutStep) {
     const stepIndex = getStepIndex(step)
 
     if (stepIndex <= highestStepIndex) {
       setCheckoutStep(step)
-      setSuccessDate(null)
-
-      if (directPayInFour && step === "pay") {
-        setPaymentMethod("pay-in-4")
-        setPaymentStage("card")
-        return
-      }
-
       setPaymentStage("methods")
     }
   }
 
   function completePayment() {
-    setSuccessDate(new Date())
     setPaymentStage("success")
   }
 
   function handleChangePaymentMethod() {
     setCheckoutStep("pay")
-    setPaymentMethod("pay-in-4")
+    setPaymentMethod(order.pay4Eligible ? "pay-in-4" : "upi")
     setPaymentStage("methods")
   }
 
@@ -1066,12 +977,6 @@ export function PayInFourDemo({
     if (checkoutStep === "address") {
       setHighestStepIndex((current) => Math.max(current, 1))
       setCheckoutStep("pay")
-
-      if (directPayInFour) {
-        setPaymentMethod("pay-in-4")
-        setPaymentStage("card")
-        return
-      }
 
       setPaymentStage("methods")
       return
@@ -1105,73 +1010,79 @@ export function PayInFourDemo({
           discountAmount={checkoutDiscountAmount}
           merchantOfferLabel={order.merchantOffer?.label}
           mrp={order.mrp}
+          pay4Eligible={order.pay4Eligible}
+          pay4Breakdown={pay4Breakdown}
           subtotal={checkoutAmount}
-          productHref={product.href}
+          productHref="/cart"
         />
       ) : null}
       <main className="mx-auto w-full max-w-6xl px-4 pb-32 pt-6 md:px-6 md:py-6">
+        {!isPaymentSuccess && !order.pay4Eligible ? (
+          <section className="mb-4">
+            <Pay4EligibilityProgress currentAmount={subtotal} />
+          </section>
+        ) : null}
         <section className="flex min-w-0 flex-col gap-4">
           <form onSubmit={handleSubmit} className="flex flex-col gap-4">
             {checkoutStep === "address" ? (
               <AddressStep
                 selectedAddressId={selectedAddressId}
                 onAddressSelect={setSelectedAddressId}
-                productHref={product.href}
-                continueLabel={
-                  directPayInFour ? "Continue to Pay in 4" : "Continue to pay"
-                }
+                productHref="/cart"
+                continueLabel="Continue to pay"
               />
             ) : null}
 
             {checkoutStep === "pay" && paymentStage === "methods" ? (
               <>
-                <section className="flex flex-col gap-2">
-                  <h2 className="text-base font-semibold leading-6">
-                    Best for you
-                  </h2>
-                  <Card className="rounded-[20px] border-border py-0 ring-0 shadow-[var(--checkout-shadow)]">
-                    <CardContent className="flex flex-col gap-3 py-4">
-                      <FieldSet aria-label="Best payment method">
-                        <RadioGroup
-                          value={paymentMethod}
-                          onValueChange={(value) => {
-                            setPaymentMethod(value as PaymentMethod)
-                            setPaymentStage("methods")
-                          }}
-                        >
-                          {recommendedPaymentMethods.map((method) => (
-                            <div key={method.value}>
-                              <PaymentMethodCard
-                                id={method.id}
-                                value={method.value}
-                                title={method.title}
-                                description={method.description}
-                                detail={method.detail}
-                                badge={method.badge}
-                                offer={method.offer}
-                                icon={method.icon}
-                                iconSrc={method.iconSrc}
-                                selected={paymentMethod === method.value}
-                              />
-                            </div>
-                          ))}
-                        </RadioGroup>
-                      </FieldSet>
-                      {paymentMethod === "pay-in-4" ? (
-                        <PayInFourWidget
-                          total={order.payInFourTotal}
-                          originalTotal={order.total}
-                          embedded
-                          offerPercent={order.merchantOffer?.value}
-                        />
-                      ) : null}
-                    </CardContent>
-                  </Card>
-                </section>
+                {recommendedPaymentMethods.length > 0 ? (
+                  <section className="flex flex-col gap-2">
+                    <h2 className="text-base font-semibold leading-6">
+                      Best for you
+                    </h2>
+                    <Card className="rounded-[20px] border-border py-0 ring-0 shadow-[var(--checkout-shadow)]">
+                      <CardContent className="flex flex-col gap-3 py-4">
+                        <FieldSet aria-label="Best payment method">
+                          <RadioGroup
+                            value={paymentMethod}
+                            onValueChange={(value) => {
+                              setPaymentMethod(value as PaymentMethod)
+                              setPaymentStage("methods")
+                            }}
+                          >
+                            {recommendedPaymentMethods.map((method) => (
+                              <div key={method.value}>
+                                <PaymentMethodCard
+                                  id={method.id}
+                                  value={method.value}
+                                  title={method.title}
+                                  description={method.description}
+                                  detail={method.detail}
+                                  meta={
+                                    method.value === "pay-in-4" ? (
+                                      <SupportedBanksList compact />
+                                    ) : undefined
+                                  }
+                                  badge={method.badge}
+                                  offer={method.offer}
+                                  icon={method.icon}
+                                  iconSrc={method.iconSrc}
+                                  selected={paymentMethod === method.value}
+                                />
+                              </div>
+                            ))}
+                          </RadioGroup>
+                        </FieldSet>
+                      </CardContent>
+                    </Card>
+                  </section>
+                ) : null}
 
                 <section className="flex flex-col gap-2">
                   <h2 className="text-base font-semibold leading-6">
-                    Other payment methods
+                    {recommendedPaymentMethods.length > 0
+                      ? "Other payment methods"
+                      : "Payment methods"}
                   </h2>
                   <Card className="rounded-[20px] border-border py-0 ring-0 shadow-[var(--checkout-shadow)]">
                     <CardContent className="py-4">
@@ -1256,28 +1167,15 @@ export function PayInFourDemo({
                 dueToday={dueToday}
                 selectedCardId={selectedSavedCardId}
                 onSelectedCardChange={setSelectedSavedCardId}
-                onChangePaymentMethod={
-                  directPayInFour ? handleChangePaymentMethod : undefined
-                }
+                onChangePaymentMethod={handleChangePaymentMethod}
                 onBack={() => {
-                  if (directPayInFour) {
-                    setCheckoutStep("address")
-                    setPaymentStage("methods")
-                    return
-                  }
-
                   setPaymentStage("methods")
                 }}
               />
             ) : null}
 
             {checkoutStep === "pay" && paymentStage === "success" ? (
-              <PaymentSuccessStep
-                installmentAmounts={payInFourInstallments}
-                offerPercent={order.merchantOffer?.value}
-                paymentDate={successDate ?? new Date()}
-                savedCard={selectedSavedCard}
-              />
+              <PaymentSuccessStep />
             ) : null}
           </form>
         </section>

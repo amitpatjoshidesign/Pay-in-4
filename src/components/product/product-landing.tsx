@@ -3,11 +3,18 @@
 import { useEffect, useState } from "react"
 import Image from "next/image"
 import Link from "next/link"
-import { ShoppingCart, X } from "lucide-react"
+import { useRouter } from "next/navigation"
+import { Plus, ShoppingCart, X } from "lucide-react"
 
-import { PayInFourThemePopover } from "@/components/pay-in-four-theme"
+import { CartButton } from "@/components/cart/cart-button"
+import { useCart } from "@/components/cart/cart-context"
+import {
+  PayInFourThemePopover,
+  usePayInFourTheme,
+} from "@/components/pay-in-four-theme"
 import { PayInFourWidget } from "@/components/product/pay-in-four-widget"
 import { ProductBrand } from "@/components/product/product-brand"
+import { ActionToast } from "@/components/ui/action-toast"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import {
@@ -19,16 +26,36 @@ import {
 } from "@/components/ui/card"
 import {
   createCheckoutOrder,
-  defaultProduct,
   formatCurrency,
   getPayInFourOfferTotal,
+  isPay4Eligible,
   products,
   splitInstallments,
   type Product,
 } from "@/data/checkout"
 
 export function ProductLanding() {
+  const router = useRouter()
+  const { merchantOfferEnabled } = usePayInFourTheme()
+  const { items, addItem } = useCart()
   const [explainerProduct, setExplainerProduct] = useState<Product | null>(null)
+  const [toastProductName, setToastProductName] = useState<string | null>(null)
+
+  function handleAddToCart(product: Product) {
+    addItem(product)
+    setToastProductName(product.name)
+  }
+
+  function handlePay4BuyNow(product: Product) {
+    const isInCart = items.some((item) => item.product.id === product.id)
+
+    if (!isInCart) {
+      addItem(product)
+    }
+
+    setExplainerProduct(null)
+    router.push("/checkout?entry=pay4")
+  }
 
   useEffect(() => {
     if (!explainerProduct) {
@@ -58,19 +85,7 @@ export function ProductLanding() {
           <ProductBrand />
           <div className="flex items-center gap-2">
             <PayInFourThemePopover />
-            <Button
-              render={
-                <Link
-                  href={`/checkout?product=${defaultProduct.slug}`}
-                  aria-label="Checkout"
-                />
-              }
-              variant="outline"
-              size="icon"
-              nativeButton={false}
-            >
-              <ShoppingCart aria-hidden="true" />
-            </Button>
+            <CartButton />
           </div>
         </div>
       </header>
@@ -78,13 +93,33 @@ export function ProductLanding() {
       <section className="mx-auto flex w-full max-w-6xl flex-col gap-6 px-4 py-6 md:px-6">
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {products.map((item, index) => {
-            const payInFourTotal = getPayInFourOfferTotal(item)
+            const payInFourTotal = getPayInFourOfferTotal(
+              item,
+              merchantOfferEnabled
+            )
 
             return (
               <Card
                 key={item.id}
-                className="group h-full overflow-hidden rounded-[calc(var(--radius)*1.2)] border-border bg-background p-0 ring-0 shadow-[var(--checkout-soft-shadow)] transition-shadow hover:shadow-[var(--checkout-shadow)]"
+                className="group relative h-full overflow-hidden rounded-[calc(var(--radius)*1.2)] border-border bg-background p-0 ring-0 shadow-[var(--checkout-soft-shadow)] transition-shadow hover:shadow-[var(--checkout-shadow)]"
               >
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="icon"
+                  className="absolute right-3 top-3 z-10 size-10 rounded-lg border-black/8 bg-white/92 text-black backdrop-blur hover:border-black/12 hover:bg-white hover:text-black"
+                  aria-label={`Add ${item.name} to cart`}
+                  onClick={() => handleAddToCart(item)}
+                >
+                  <span className="relative">
+                    <ShoppingCart aria-hidden="true" />
+                    <Plus
+                      aria-hidden="true"
+                      strokeWidth={2}
+                      className="absolute -right-1 -top-1 size-3.5 rounded-full bg-white"
+                    />
+                  </span>
+                </Button>
                 <Link
                   href={item.href}
                   className="block focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
@@ -118,40 +153,54 @@ export function ProductLanding() {
                     </div>
                   </CardHeader>
                 </Link>
-                {item.payInFourEligible ? (
-                  <div className="px-4 pb-4">
+                <div className="px-4 pb-4">
+                  {isPay4Eligible(item) ? (
                     <div className="flex min-w-0 flex-wrap items-center gap-2 pt-1">
                       <button
                         type="button"
                         className="shrink-0 rounded-[8px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
                         aria-haspopup="dialog"
                         aria-expanded={explainerProduct?.id === item.id}
-                        aria-label={`Learn about Pay in 4 for ${item.name}`}
+                        aria-label={`Learn about Pay4 for ${item.name}`}
                         onClick={() => setExplainerProduct(item)}
                       >
                         <PayInFourTag />
                       </button>
-                      {item.merchantOffer ? (
+                      {merchantOfferEnabled && item.merchantOffer ? (
                         <Badge className="h-6 shrink-0 rounded-[8px] bg-emerald-50 px-2 text-[10px] font-bold leading-none text-emerald-700 ring-1 ring-emerald-200 hover:bg-emerald-50">
                           {item.merchantOffer.value}% off
                         </Badge>
                       ) : null}
                       <p className="min-w-0 text-sm font-medium text-primary">
-                        4 payments of{" "}
-                        {formatCurrency(splitInstallments(payInFourTotal)[0])}{" "}
-                        monthly
+                        Pay in 4 monthly installments of {formatCurrency(splitInstallments(payInFourTotal)[0])}
                       </p>
                     </div>
-                  </div>
-                ) : null}
+                  ) : (
+                    <div className="pt-1">
+                      <p className="text-sm text-muted-foreground">
+                        Add items to cart to unlock Pay4 above {formatCurrency(5000)}.
+                      </p>
+                    </div>
+                  )}
+                </div>
               </Card>
             )
           })}
         </div>
       </section>
 
+      {toastProductName ? (
+        <ActionToast
+          title={`${toastProductName} added to cart`}
+          actionHref="/cart"
+          actionLabel="Go to cart"
+          onDismiss={() => setToastProductName(null)}
+        />
+      ) : null}
+
       <PayInFourBottomSheet
         product={explainerProduct}
+        onBuyNowWithPay4={handlePay4BuyNow}
         onClose={() => setExplainerProduct(null)}
       />
     </main>
@@ -161,7 +210,7 @@ export function ProductLanding() {
 function PayInFourTag() {
   return (
     <Badge
-      className="h-6 gap-1.5 rounded-[8px] pl-1 pr-1.5 text-[10px] font-bold italic leading-none text-white ring-1 ring-white/35"
+      className="h-6 gap-1.5 rounded-[8px] pl-1 pr-1.5 text-[10px] font-bold italic leading-none tracking-[0.01em] text-white ring-1 ring-white/35"
       style={{
         background: "var(--pay-in-four-badge-gradient)",
         borderColor: "var(--pay-in-four-badge-border)",
@@ -169,7 +218,7 @@ function PayInFourTag() {
       }}
     >
       <PineArrowMark />
-      Pay in 4
+      Pay4
     </Badge>
   )
 }
@@ -189,23 +238,26 @@ function PineArrowMark() {
 
 function PayInFourBottomSheet({
   product,
+  onBuyNowWithPay4,
   onClose,
 }: {
   product: Product | null
+  onBuyNowWithPay4: (product: Product) => void
   onClose: () => void
 }) {
   if (!product) {
     return null
   }
 
-  const order = createCheckoutOrder(product)
+  const { merchantOfferEnabled } = usePayInFourTheme()
+  const order = createCheckoutOrder(product, merchantOfferEnabled)
 
   return (
     <div className="fixed inset-0 z-50 flex items-end justify-center">
       <button
         type="button"
         className="absolute inset-0 cursor-default bg-foreground/35"
-        aria-label="Close Pay in 4 explainer"
+        aria-label="Close Pay4 explainer"
         onClick={onClose}
       />
       <section
@@ -217,32 +269,29 @@ function PayInFourBottomSheet({
         <div className="mx-auto h-1 w-10 rounded-full bg-border" />
         <div className="flex items-start justify-between gap-4">
           <div className="min-w-0">
-            <p className="text-sm font-medium text-muted-foreground">
-              {product.name}
-            </p>
             <h2
               id="pay-in-four-sheet-title"
               className="text-xl font-bold tracking-tight"
             >
-              Pay in 4 available
+              Pay4 available
             </h2>
+            {order.merchantOffer ? (
+              <p className="mt-2 inline-flex w-fit rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-700 ring-1 ring-emerald-200">
+                {order.merchantOffer.value}% off on MRP
+              </p>
+            ) : null}
           </div>
           <Button
             type="button"
             variant="ghost"
             size="icon"
             className="shrink-0 rounded-full"
-            aria-label="Close Pay in 4 explainer"
+            aria-label="Close Pay4 explainer"
             onClick={onClose}
           >
             <X aria-hidden="true" />
           </Button>
         </div>
-
-        <p className="text-sm leading-6 text-muted-foreground">
-          Split this purchase into four interest-free payments. Pay the first
-          part today, then the remaining three payments monthly.
-        </p>
 
         <div className="flex flex-col gap-3">
           <PayInFourWidget
@@ -250,11 +299,41 @@ function PayInFourBottomSheet({
             originalTotal={order.total}
             defaultExpanded
             embedded
-            offerPercent={product.merchantOffer?.value}
-            directCheckoutHref={`/checkout?product=${product.slug}&direct=pay-in-4`}
+            offerPercent={order.merchantOffer?.value}
+            onDirectCheckout={() => onBuyNowWithPay4(product)}
+            supportingContent={
+              <div className="flex items-center">
+                {supportedBanks.map((bank, index) => (
+                  <div
+                    key={bank.name}
+                    className="flex size-8 min-w-0 items-center justify-center rounded-full border bg-white p-1.5"
+                    style={{
+                      marginLeft: index > 0 ? "-4px" : undefined,
+                      borderColor: "var(--pay-in-four-surface)",
+                    }}
+                  >
+                    <Image
+                      src={bank.logo}
+                      alt={bank.name}
+                      width={48}
+                      height={20}
+                      className="max-h-3.5 max-w-6 object-contain"
+                    />
+                  </div>
+                ))}
+              </div>
+            }
           />
         </div>
       </section>
     </div>
   )
 }
+
+const supportedBanks = [
+  { name: "ICICI Bank", logo: "/bank-logos/icici.svg" },
+  { name: "SBI", logo: "/bank-logos/sbi.svg" },
+  { name: "Axis Bank", logo: "/bank-logos/axis.svg" },
+  { name: "Kotak", logo: "/bank-logos/kotak.svg" },
+  { name: "HDFC Bank", logo: "/bank-logos/hdfc.svg" },
+]
