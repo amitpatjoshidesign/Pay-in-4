@@ -233,7 +233,7 @@ function CheckoutOrderHeader({
               <>
                 <HeaderBreakdownRow label="MRP" value={formatCurrency(mrp)} />
                 <HeaderBreakdownRow
-                  label={merchantOfferLabel ?? "Merchant offer"}
+                  label={merchantOfferLabel ?? "Pay4 benefit (interest adjustment)"}
                   value={`-${formatCurrency(discountAmount)}`}
                 />
                 <HeaderBreakdownRow label="Delivery" value="Included" />
@@ -309,7 +309,7 @@ function CheckoutPay4Breakdown({
         value={formatCurrency(breakdown.amountChargedToday)}
       />
       <HeaderBreakdownRow
-        label="Pay4 benefit (upfront adjustment)"
+        label="Pay4 benefit (interest adjustment)"
         value={`-${formatCurrency(breakdown.pay4Benefit)}`}
       />
 
@@ -346,6 +346,12 @@ function FigmaCheckoutBar({
     <nav className="sticky top-0 z-40 border-b bg-background">
       <div className="mx-auto flex h-14 w-full max-w-6xl items-center justify-between gap-3 px-4 md:px-6">
         <div className="flex min-w-0 items-center gap-2 text-sm font-semibold">
+          <Link
+            href="/"
+            className="rounded-[var(--radius)] px-2 py-1 text-primary transition-colors hover:text-primary/80"
+          >
+            Home
+          </Link>
           {checkoutSteps.map((step, index) => {
             const isCurrent = step.id === currentStep
             const isCompleted = index < currentStepIndex
@@ -353,9 +359,7 @@ function FigmaCheckoutBar({
 
             return (
               <div key={step.id} className="flex items-center gap-2">
-                {index > 0 ? (
-                  <span className="text-muted-foreground">»</span>
-                ) : null}
+                <span className="text-muted-foreground">»</span>
                 <button
                   type="button"
                   disabled={!isAvailable}
@@ -877,20 +881,20 @@ export function PayInFourDemo({
     order.pay4Eligible &&
     paymentMethod === "pay-in-4" &&
     checkoutStep === "pay"
+  const pay4Breakdown = useMemo(
+    () => (order.pay4Eligible ? createPay4BreakdownDisplay(order) : undefined),
+    [order]
+  )
   const payInFourInstallments = useMemo(
     () => splitInstallments(order.payInFourTotal),
     [order.payInFourTotal]
   )
   const checkoutAmount = isPayInFourOfferActive
-    ? order.payInFourTotal
+    ? pay4Breakdown?.amountChargedToday ?? order.total
     : order.total
   const checkoutDiscountAmount = isPayInFourOfferActive
-    ? order.payInFourDiscountAmount
+    ? pay4Breakdown?.pay4Benefit ?? 0
     : 0
-  const pay4Breakdown = useMemo(
-    () => (order.pay4Eligible ? createPay4BreakdownDisplay(order) : undefined),
-    [order]
-  )
 
   const dueToday =
     paymentMethod === "pay-in-4"
@@ -1008,7 +1012,7 @@ export function PayInFourDemo({
         <CheckoutOrderHeader
           amount={checkoutAmount}
           discountAmount={checkoutDiscountAmount}
-          merchantOfferLabel={order.merchantOffer?.label}
+          merchantOfferLabel="Pay4 benefit (interest adjustment)"
           mrp={order.mrp}
           pay4Eligible={order.pay4Eligible}
           pay4Breakdown={pay4Breakdown}

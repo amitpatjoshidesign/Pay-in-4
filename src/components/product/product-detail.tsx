@@ -1,6 +1,7 @@
 "use client"
 
 import { useState } from "react"
+import { flushSync } from "react-dom"
 import Image from "next/image"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
@@ -91,6 +92,16 @@ export function ProductDetail({ product }: ProductDetailProps) {
     router.push("/checkout")
   }
 
+  function handlePay4BuyNow() {
+    if (!isInCart) {
+      flushSync(() => {
+        addItem(product)
+      })
+    }
+
+    router.push("/checkout?entry=pay4")
+  }
+
   return (
     <main className="min-h-screen bg-background">
       <header className="sticky top-0 z-40 border-b bg-background/95 backdrop-blur">
@@ -152,7 +163,7 @@ export function ProductDetail({ product }: ProductDetailProps) {
                 total={order.payInFourTotal}
                 originalTotal={order.total}
                 offerPercent={order.merchantOffer?.value}
-                directCheckoutHref="/checkout?entry=pay4"
+                onDirectCheckout={handlePay4BuyNow}
                 supportingContent={
                   <div className="flex items-center">
                     {supportedBanks.map((bank, index) => (

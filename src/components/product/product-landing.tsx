@@ -1,6 +1,7 @@
 "use client"
 
 import { useEffect, useState } from "react"
+import { flushSync } from "react-dom"
 import Image from "next/image"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
@@ -50,7 +51,9 @@ export function ProductLanding() {
     const isInCart = items.some((item) => item.product.id === product.id)
 
     if (!isInCart) {
-      addItem(product)
+      flushSync(() => {
+        addItem(product)
+      })
     }
 
     setExplainerProduct(null)

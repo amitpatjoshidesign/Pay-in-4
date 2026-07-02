@@ -89,6 +89,8 @@ export type Pay4BreakdownDisplay = {
   totalRepayment: number
 }
 
+export const PAY4_SUMMARY_SUBVENTION = 2000
+
 export const PAY4_ELIGIBILITY_THRESHOLD = 5000
 
 export const products: Product[] = [
@@ -455,14 +457,17 @@ export function splitInstallments(total: number) {
 }
 
 export function createPay4BreakdownDisplay(
-  order: Pick<CheckoutOrder, "total" | "payInFourTotal" | "payInFourDiscountAmount">
+  order: Pick<CheckoutOrder, "pay4Eligible" | "total">
 ): Pay4BreakdownDisplay {
   const monthlyInstallments = splitInstallments(order.total)
+  const pay4Benefit = order.pay4Eligible
+    ? Math.min(PAY4_SUMMARY_SUBVENTION, order.total)
+    : 0
 
   return {
     orderValue: order.total,
-    amountChargedToday: order.payInFourTotal,
-    pay4Benefit: order.payInFourDiscountAmount,
+    amountChargedToday: order.total - pay4Benefit,
+    pay4Benefit,
     monthlyInstallment: monthlyInstallments[0],
     totalRepayment: monthlyInstallments.reduce((sum, amount) => sum + amount, 0),
   }

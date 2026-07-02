@@ -380,7 +380,7 @@ function CartPay4Breakdown({
           mobile={mobile}
         />
         <SummaryLikeRow
-          label="Pay4 benefit (upfront adjustment)"
+          label="Pay4 benefit (interest adjustment)"
           value={`-${formatCurrency(breakdown.pay4Benefit)}`}
           mobile={mobile}
         />
@@ -407,10 +407,9 @@ function CartPay4Breakdown({
       {!mobile ? (
         <div className="mt-4">
           <PayInFourWidget
-            total={order.payInFourTotal}
+            total={breakdown.amountChargedToday}
             originalTotal={order.total}
             embedded
-            offerPercent={order.merchantOffer?.value || undefined}
           />
         </div>
       ) : null}
