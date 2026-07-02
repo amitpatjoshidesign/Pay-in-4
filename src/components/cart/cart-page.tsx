@@ -54,9 +54,15 @@ export function CartPage() {
         <div className="hidden items-start justify-between gap-4 md:flex">
           <div>
             <h1 className="text-2xl font-bold tracking-tight md:text-4xl">Cart</h1>
-            <p className="mt-2 text-sm text-muted-foreground">
-              Review your items and unlock Pay4 on carts above {formatCurrency(5000)}.
-            </p>
+            {order.pay4Eligible ? (
+              <p className="mt-2 text-sm text-muted-foreground">
+                Your items are eligible for Pay4.
+              </p>
+            ) : (
+              <p className="mt-2 text-sm text-muted-foreground">
+                Review your items and unlock Pay4 on carts above {formatCurrency(5000)}.
+              </p>
+            )}
           </div>
           {items.length > 0 ? (
             <Button
@@ -76,9 +82,15 @@ export function CartPage() {
               <div className="flex items-start justify-between gap-4">
                 <div>
                   <h1 className="text-2xl font-bold tracking-tight">Cart</h1>
-                  <p className="mt-2 text-sm text-white/70">
-                    Review your items and unlock Pay4 on carts above {formatCurrency(5000)}.
-                  </p>
+                  {order.pay4Eligible ? (
+                    <p className="mt-2 text-sm text-white/70">
+                      Your items are eligible for Pay4.
+                    </p>
+                  ) : (
+                    <p className="mt-2 text-sm text-white/70">
+                      Review your items and unlock Pay4 on carts above {formatCurrency(5000)}.
+                    </p>
+                  )}
                 </div>
                 <Button
                   type="button"
