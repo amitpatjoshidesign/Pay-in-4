@@ -375,13 +375,13 @@ function CartPay4Breakdown({
           mobile={mobile}
         />
         <SummaryLikeRow
-          label="Amount charged to your card today"
-          value={formatCurrency(breakdown.amountChargedToday)}
+          label="Pay4 benefit (interest adjustment)"
+          value={`-${formatCurrency(breakdown.pay4Benefit)}`}
           mobile={mobile}
         />
         <SummaryLikeRow
-          label="Pay4 benefit (interest adjustment)"
-          value={`-${formatCurrency(breakdown.pay4Benefit)}`}
+          label="Final amount"
+          value={formatCurrency(breakdown.amountChargedToday)}
           mobile={mobile}
         />
       </div>
